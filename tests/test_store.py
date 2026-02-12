@@ -92,6 +92,19 @@ class TestResultStore:
         assert loaded.config == {"key": "val"}
         assert loaded.summary == {"total": 1, "passed": 1}
 
+    def test_context_manager(self, tmp_path):
+        with ResultStore(tmp_path / "ctx.db") as s:
+            s.save_run(_make_run())
+            loaded = s.get_run("run-1")
+            assert loaded is not None
+        # Connection closed after exiting context
+        assert s._conn is None
+
+    def test_duplicate_run_id_raises(self, store):
+        store.save_run(_make_run("run-1"))
+        with pytest.raises(Exception):
+            store.save_run(_make_run("run-1"))
+
     def test_details_and_tools_roundtrip(self, store):
         r = _make_result(
             details={"key": [1, 2, 3]},

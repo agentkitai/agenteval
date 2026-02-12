@@ -126,6 +126,12 @@ class ResultStore:
             for r in rows
         ]
 
+    def __enter__(self) -> "ResultStore":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
     def close(self) -> None:
         if self._conn:
             self._conn.close()

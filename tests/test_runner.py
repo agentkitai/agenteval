@@ -108,6 +108,19 @@ class TestRunner:
         assert run.id == "custom-123"
 
     @pytest.mark.asyncio
+    async def test_sync_agent_timeout(self):
+        """Sync callables that block must also be timed out."""
+        import time as _time
+
+        def slow_sync_agent(input_text):
+            _time.sleep(10)
+            return AgentResult(output="late")
+
+        run = await run_suite(_make_suite(), slow_sync_agent, timeout=0.2)
+        assert run.results[0].passed is False
+        assert "timed out" in run.results[0].details["error"]
+
+    @pytest.mark.asyncio
     async def test_summary_stats(self):
         cases = [
             EvalCase(name="c1", input="x", expected={"output": "x"}, grader="exact"),

@@ -19,11 +19,16 @@ AgentCallable = Union[
 async def _call_agent(fn: AgentCallable, input_text: str, timeout: float) -> AgentResult:
     """Call the agent callable with timeout, handling both sync and async."""
     start = time.perf_counter()
-    result_obj = fn(input_text)
-    if asyncio.iscoroutine(result_obj) or asyncio.isfuture(result_obj):
-        result = await asyncio.wait_for(result_obj, timeout=timeout)
+    if asyncio.iscoroutinefunction(fn):
+        result = await asyncio.wait_for(fn(input_text), timeout=timeout)
     else:
-        result = result_obj  # type: ignore[assignment]
+        # Run sync callables in executor so they don't block the event loop,
+        # and enforce timeout on them too.
+        loop = asyncio.get_running_loop()
+        result = await asyncio.wait_for(
+            loop.run_in_executor(None, fn, input_text),
+            timeout=timeout,
+        )
     elapsed_ms = int((time.perf_counter() - start) * 1000)
     if result.latency_ms == 0:
         result.latency_ms = elapsed_ms
