@@ -284,3 +284,27 @@ def compare(run_ids: tuple, db: str, alpha: float, threshold: float, stats: bool
         click.echo(click.style(f"\n⚠ {len(report.regressions)} regression(s) detected!", fg="red", bold=True))
 
     click.echo()
+
+
+@cli.command("import")
+@click.option("--from", "source", required=True, type=click.Choice(["agentlens"]), help="Import source.")
+@click.option("--db", required=True, type=click.Path(), help="Path to source database.")
+@click.option("--output", "-o", required=True, type=click.Path(), help="Output YAML suite path.")
+@click.option("--name", default=None, help="Suite name (defaults to source name).")
+@click.option("--grader", default="contains", show_default=True, help="Default grader for imported cases.")
+@click.option("--limit", default=None, type=int, help="Max sessions to import.")
+def import_cmd(source: str, db: str, output: str, name: Optional[str], grader: str, limit: Optional[int]) -> None:
+    """Import agent sessions from external sources as eval suites."""
+    if source == "agentlens":
+        from agenteval.importers.agentlens import AgentLensImportError
+        from agenteval.importers.agentlens import export_suite_yaml, import_agentlens
+
+        suite_name = name or "agentlens-import"
+        try:
+            suite = import_agentlens(db_path=db, suite_name=suite_name, grader=grader, limit=limit)
+        except AgentLensImportError as e:
+            click.echo(f"Import error: {e}", err=True)
+            sys.exit(1)
+
+        out_path = export_suite_yaml(suite, output)
+        click.echo(f"Imported {len(suite.cases)} cases → {out_path}")
