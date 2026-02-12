@@ -1,0 +1,38 @@
+name: math-agent-demo
+agent: demo.echo_agent:agent
+
+cases:
+  - name: basic-addition
+    input: "What is 2 + 2?"
+    expected:
+      output_contains: ["4"]
+    grader: contains
+    tags: [math, basic]
+
+  - name: capital-city
+    input: "What is the capital of France?"
+    expected:
+      output_contains: ["Paris"]
+    grader: contains
+    tags: [geography]
+
+  - name: quantum-summary
+    input: "Summarize quantum computing in one sentence."
+    expected:
+      pattern: "qubit|quantum|superposition"
+    grader: regex
+    tags: [science]
+
+  - name: tool-usage
+    input: "Search for the weather in NYC"
+    expected:
+      tools_called: ["web_search"]
+    grader: tool-check
+    tags: [tools]
+
+  - name: list-format
+    input: "List 3 primary colors"
+    expected:
+      output_contains: ["Red", "Blue", "Yellow"]
+    grader: contains
+    tags: [format]

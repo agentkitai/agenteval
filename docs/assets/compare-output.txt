@@ -1,0 +1,18 @@
+
+============================================================================
+Comparing: c1c6493118d5,d17a2dce0222 vs 4ee7e40601e3,ba5b0dde212b
+Alpha: 0.05  Regression threshold: 0.0
+============================================================================
+
+Case                          Base   Target     Diff   p-value  Sig Status
+----------------------------------------------------------------------------
+  basic-addition             1.000    1.000   +0.000         —      
+  capital-city               1.000    0.500   -0.500    0.4533      
+  quantum-summary            1.000    0.500   -0.500    0.4533      
+  tool-usage                 1.000    0.000   -1.000    0.0000    * ▼ regressed
+  list-format                1.000    0.500   -0.500    0.4533      
+
+Summary: 0 improved, 1 regressed, 4 unchanged
+
+⚠ 1 regression(s) detected!
+

@@ -1,0 +1,9 @@
+
+ID             Suite                Passed   Failed   Rate     Created
+--------------------------------------------------------------------------------
+aeccd5e53f03   math-agent-demo      2        3        40%      2026-02-12T21:12:12
+4f3e380f622c   math-agent-demo      3        2        60%      2026-02-12T21:12:12
+bd4ef3a0727b   math-agent-demo      1        4        20%      2026-02-12T21:12:12
+e2ca43e99852   math-agent-demo      3        2        60%      2026-02-12T21:12:11
+32ed650cab6d   math-agent-demo      2        3        40%      2026-02-12T21:12:11
+

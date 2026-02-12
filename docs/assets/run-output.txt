@@ -1,0 +1,13 @@
+
+============================================================
+Suite: math-agent-demo  |  Run: c1c6493118d5
+============================================================
+  PASS  basic-addition (score=1.00, 150ms)
+  PASS  capital-city (score=1.00, 200ms)
+  PASS  quantum-summary (score=1.00, 350ms)
+  PASS  tool-usage (score=1.00, 280ms)
+  PASS  list-format (score=1.00, 120ms)
+
+Total: 5  Passed: 5  Failed: 0  Pass rate: 100%
+Cost: $0.0023  Avg latency: 220ms
+

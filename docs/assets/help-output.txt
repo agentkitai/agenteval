@@ -1,0 +1,13 @@
+Usage: agenteval [OPTIONS] COMMAND [ARGS]...
+
+  AgentEval — Testing and evaluation framework for AI agents.
+
+Options:
+  --version  Show the version and exit.
+  --help     Show this message and exit.
+
+Commands:
+  compare  Compare evaluation runs.
+  import   Import agent sessions from external sources as eval suites.
+  list     List past evaluation runs.
+  run      Run an evaluation suite against an agent.
