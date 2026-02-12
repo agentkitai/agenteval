@@ -173,77 +173,114 @@ def list_runs(db: str, suite_filter: Optional[str], limit: int) -> None:
 
 
 @cli.command()
-@click.argument("run_a")
-@click.argument("run_b")
+@click.argument("run_ids", nargs=-1, required=True)
 @click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
-def compare(run_a: str, run_b: str, db: str) -> None:
-    """Compare two evaluation runs side-by-side."""
+@click.option("--alpha", default=0.05, show_default=True, help="Significance level for t-test.")
+@click.option("--threshold", default=0.0, show_default=True, help="Min score drop for regression.")
+@click.option("--stats/--no-stats", default=True, show_default=True, help="Show statistical details.")
+def compare(run_ids: tuple, db: str, alpha: float, threshold: float, stats: bool) -> None:
+    """Compare evaluation runs. Give exactly 2 run IDs, or use 'A1,A2 vs B1,B2' for multi-run.
+
+    Examples:
+      agenteval compare RUN_A RUN_B
+      agenteval compare RUN_A1,RUN_A2 vs RUN_B1,RUN_B2
+    """
+    from agenteval.compare import ChangeStatus, compare_runs
+
+    # Parse run IDs: support "id1,id2 vs id3,id4" or simple "idA idB"
+    tokens = list(run_ids)
+    if "vs" in tokens:
+        vs_idx = tokens.index("vs")
+        base_ids = [i.strip() for t in tokens[:vs_idx] for i in t.split(",") if i.strip()]
+        target_ids = [i.strip() for t in tokens[vs_idx + 1:] for i in t.split(",") if i.strip()]
+    elif len(tokens) == 2:
+        base_ids = [i.strip() for i in tokens[0].split(",") if i.strip()]
+        target_ids = [i.strip() for i in tokens[1].split(",") if i.strip()]
+    else:
+        click.echo("Error: Provide exactly 2 run IDs or use 'ids vs ids' format.", err=True)
+        sys.exit(1)
+
+    if not base_ids or not target_ids:
+        click.echo("Error: Both base and target must have at least one run ID.", err=True)
+        sys.exit(1)
+
     store = ResultStore(db)
     try:
-        a = store.get_run(run_a)
-        b = store.get_run(run_b)
+        base_runs = []
+        for rid in base_ids:
+            r = store.get_run(rid)
+            if r is None:
+                click.echo(f"Error: Run '{rid}' not found.", err=True)
+                sys.exit(1)
+            base_runs.append(r)
+
+        target_runs = []
+        for rid in target_ids:
+            r = store.get_run(rid)
+            if r is None:
+                click.echo(f"Error: Run '{rid}' not found.", err=True)
+                sys.exit(1)
+            target_runs.append(r)
     finally:
         store.close()
 
-    if a is None:
-        click.echo(f"Error: Run '{run_a}' not found.", err=True)
-        sys.exit(1)
-    if b is None:
-        click.echo(f"Error: Run '{run_b}' not found.", err=True)
-        sys.exit(1)
+    report = compare_runs(base_runs, target_runs, alpha=alpha, regression_threshold=threshold)
 
-    # Build result maps
-    a_map = {r.case_name: r for r in a.results}
-    b_map = {r.case_name: r for r in b.results}
-    all_cases = list(dict.fromkeys(list(a_map) + list(b_map)))
+    # Print header
+    base_label = ",".join(base_ids)
+    target_label = ",".join(target_ids)
+    click.echo(f"\n{'='*76}")
+    click.echo(f"Comparing: {base_label} vs {target_label}")
+    click.echo(f"Alpha: {alpha}  Regression threshold: {threshold}")
+    click.echo(f"{'='*76}")
 
-    click.echo(f"\n{'='*70}")
-    click.echo(f"Comparing: {a.id} vs {b.id}")
-    click.echo(f"Suites:    {a.suite} vs {b.suite}")
-    click.echo(f"{'='*70}")
+    if stats:
+        click.echo(f"\n{'Case':<25} {'Base':>8} {'Target':>8} {'Diff':>8} {'p-value':>9} {'Sig':>4} {'Status'}")
+        click.echo("-" * 76)
+    else:
+        click.echo(f"\n{'Case':<25} {'Base':>8} {'Target':>8} {'Status'}")
+        click.echo("-" * 56)
 
-    click.echo(f"\n{'Case':<30} {a.id:<14} {b.id:<14} {'Change'}")
-    click.echo("-" * 70)
+    for c in report.cases:
+        b_mean = f"{c.base.mean:.3f}" if c.base else "—"
+        t_mean = f"{c.target.mean:.3f}" if c.target else "—"
 
-    changes = {"improved": 0, "regressed": 0, "unchanged": 0, "new": 0, "removed": 0}
-    for case_name in all_cases:
-        ra = a_map.get(case_name)
-        rb = b_map.get(case_name)
-
-        if ra and rb:
-            sa = "PASS" if ra.passed else "FAIL"
-            sb = "PASS" if rb.passed else "FAIL"
-            if ra.passed == rb.passed:
-                change = ""
-                changes["unchanged"] += 1
-            elif rb.passed and not ra.passed:
-                change = click.style("▲ improved", fg="green")
-                changes["improved"] += 1
-            else:
-                change = click.style("▼ regressed", fg="red")
-                changes["regressed"] += 1
-        elif ra and not rb:
-            sa = "PASS" if ra.passed else "FAIL"
-            sb = "—"
-            change = "removed"
-            changes["removed"] += 1
+        if c.status == ChangeStatus.REGRESSED:
+            status_str = click.style("▼ regressed", fg="red")
+        elif c.status == ChangeStatus.IMPROVED:
+            status_str = click.style("▲ improved", fg="green")
+        elif c.status == ChangeStatus.NEW:
+            status_str = "new"
+        elif c.status == ChangeStatus.REMOVED:
+            status_str = "removed"
         else:
-            sa = "—"
-            sb = "PASS" if rb.passed else "FAIL"
-            change = "new"
-            changes["new"] += 1
+            status_str = ""
 
-        click.echo(f"  {case_name:<28} {sa:<14} {sb:<14} {change}")
+        if stats and c.base and c.target:
+            sig = "*" if c.significant else ""
+            p_str = f"{c.p_value:.4f}" if c.p_value < 1.0 else "—"
+            diff_str = f"{c.mean_diff:+.3f}"
+            click.echo(
+                f"  {c.case_name:<23} {b_mean:>8} {t_mean:>8} {diff_str:>8} "
+                f"{p_str:>9} {sig:>4} {status_str}"
+            )
+        else:
+            if stats:
+                click.echo(
+                    f"  {c.case_name:<23} {b_mean:>8} {t_mean:>8} {'':>8} "
+                    f"{'':>9} {'':>4} {status_str}"
+                )
+            else:
+                click.echo(f"  {c.case_name:<23} {b_mean:>8} {t_mean:>8} {status_str}")
 
-    click.echo(f"\nSummary: {changes['improved']} improved, {changes['regressed']} regressed, "
-               f"{changes['unchanged']} unchanged")
-    if changes["new"] or changes["removed"]:
-        click.echo(f"         {changes['new']} new, {changes['removed']} removed")
+    # Summary
+    s = report.summary
+    click.echo(f"\nSummary: {s.get('improved', 0)} improved, {s.get('regressed', 0)} regressed, "
+               f"{s.get('unchanged', 0)} unchanged")
+    if s.get("new") or s.get("removed"):
+        click.echo(f"         {s.get('new', 0)} new, {s.get('removed', 0)} removed")
 
-    # Pass rate comparison
-    ar = a.summary.get("pass_rate", 0)
-    br = b.summary.get("pass_rate", 0)
-    diff = br - ar
-    sign = "+" if diff > 0 else ""
-    click.echo(f"\nPass rate: {ar:.0%} → {br:.0%} ({sign}{diff:.0%})")
+    if report.regressions:
+        click.echo(click.style(f"\n⚠ {len(report.regressions)} regression(s) detected!", fg="red", bold=True))
+
     click.echo()
