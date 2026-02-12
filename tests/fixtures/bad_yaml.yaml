@@ -1,0 +1,4 @@
+name: test
+cases:
+  - name: broken
+    input: [[[invalid

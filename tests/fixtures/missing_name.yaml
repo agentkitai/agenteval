@@ -1,0 +1,4 @@
+agent: myapp.agent:run
+cases:
+  - name: test1
+    input: "hello"

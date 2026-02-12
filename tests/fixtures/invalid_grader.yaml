@@ -1,0 +1,5 @@
+name: test-suite
+cases:
+  - name: test1
+    input: "hello"
+    grader: nonexistent
