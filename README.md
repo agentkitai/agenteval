@@ -331,7 +331,7 @@ Contributions welcome! This project uses:
 - **src layout** (`src/agenteval/`)
 
 ```bash
-git clone https://github.com/amitpaz/agenteval.git
+git clone https://github.com/amitpaz1/agenteval.git
 cd agenteval
 pip install -e ".[dev]"
 pytest

@@ -40,8 +40,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/amitpaz/agenteval"
-Repository = "https://github.com/amitpaz/agenteval"
+Homepage = "https://github.com/amitpaz1/agenteval"
+Repository = "https://github.com/amitpaz1/agenteval"
 
 [project.scripts]
 agenteval = "agenteval.cli:cli"
