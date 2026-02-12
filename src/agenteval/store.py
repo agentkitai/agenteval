@@ -109,6 +109,27 @@ class ResultStore:
             ))
         return runs
 
+    def list_runs_summary(self, suite: Optional[str] = None) -> List[EvalRun]:
+        """List runs with summary only (no individual results loaded)."""
+        conn = self._get_conn()
+        if suite:
+            rows = conn.execute(
+                "SELECT * FROM eval_runs WHERE suite = ? ORDER BY created_at DESC",
+                (suite,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM eval_runs ORDER BY created_at DESC"
+            ).fetchall()
+        return [
+            EvalRun(
+                id=row["id"], suite=row["suite"], agent_ref=row["agent_ref"],
+                config=json.loads(row["config"]), results=[],
+                summary=json.loads(row["summary"]), created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
     def _load_results(self, run_id: str) -> List[EvalResult]:
         conn = self._get_conn()
         rows = conn.execute(

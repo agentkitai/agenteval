@@ -14,6 +14,7 @@ class EvalCase:
     expected: Dict
     grader: str
     grader_config: Dict = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
 
 
 @dataclass

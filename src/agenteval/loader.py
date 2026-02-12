@@ -74,6 +74,7 @@ def load_suite(path: str) -> EvalSuite:
             expected=case_data.get("expected", {}),
             grader=grader,
             grader_config={**default_grader_config, **case_data.get("grader_config", {})},
+            tags=case_data.get("tags", []),
         ))
 
     return EvalSuite(
