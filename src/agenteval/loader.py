@@ -49,6 +49,8 @@ def load_suite(path: str) -> EvalSuite:
         raise LoadError("Suite 'cases' must be a non-empty list")
 
     defaults = data.get("defaults", {})
+    if "adapter" in data:
+        defaults["adapter"] = data["adapter"]
     default_grader = defaults.get("grader", "exact")
     default_grader_config = defaults.get("grader_config", {})
 

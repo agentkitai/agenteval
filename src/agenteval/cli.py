@@ -58,8 +58,9 @@ def _resolve_callable(dotted_path: str):
 @click.option("--timeout", default=30.0, show_default=True, help="Per-case timeout in seconds.")
 @click.option("--parallel", default=1, show_default=True, type=int, help="Max concurrent cases.")
 @click.option("--progress/--no-progress", default=None, help="Show progress bar (default: auto-detect TTY).")
+@click.option("--adapter", "adapter_name", default=None, help="Adapter name (e.g. 'langchain').")
 def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, timeout: float,
-        parallel: int, progress: Optional[bool]) -> None:
+        parallel: int, progress: Optional[bool], adapter_name: Optional[str] = None) -> None:
     """Run an evaluation suite against an agent."""
     if timeout <= 0:
         click.echo("Error: --timeout must be positive.", err=True)
@@ -102,6 +103,14 @@ def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, ti
         click.echo(f"Error: {e.format_message()}", err=True)
         sys.exit(1)
 
+    # Resolve adapter (CLI --adapter overrides YAML adapter)
+    _adapter_name = adapter_name or eval_suite.defaults.get("adapter")
+    _adapter_instance = None
+    if _adapter_name:
+        from agenteval.adapters import _import_agent, get_adapter
+        agent_obj = _import_agent(agent_ref) if agent_ref else agent_fn
+        _adapter_instance = get_adapter(_adapter_name, agent=agent_obj)
+
     # Progress bar
     show_progress = progress if progress is not None else sys.stdout.isatty()
     progress_reporter = None
@@ -119,7 +128,8 @@ def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, ti
     try:
         eval_run = asyncio.run(
             run_suite(eval_suite, agent_fn, store=store, timeout=timeout,
-                      parallel=parallel, on_result=on_result_cb)
+                      parallel=parallel, on_result=on_result_cb,
+                      adapter=_adapter_instance)
         )
     except Exception as e:
         click.echo(f"Error during run: {e}", err=True)
@@ -423,6 +433,54 @@ def github_comment_cmd(run_id: str, db: str, dry_run: bool) -> None:
     click.echo(f"Comment posted to {repo}#{pr_number}")
 
 
+@cli.command("generate")
+@click.option("--suite", required=True, type=click.Path(exists=True), help="Path to source YAML suite.")
+@click.option("--output", "-o", required=True, type=click.Path(), help="Output YAML path.")
+@click.option("--strategies", default=None, help="Comma-separated strategy names (default: all).")
+@click.option("--count", default=None, type=int, help="Max mutations per strategy per case.")
+def generate_cmd(suite: str, output: str, strategies: Optional[str], count: Optional[int]) -> None:
+    """Generate mutated test cases from an existing suite."""
+    from agenteval.generators import generate
+
+    try:
+        eval_suite = load_suite(suite)
+    except LoadError as e:
+        click.echo(f"Error loading suite: {e}", err=True)
+        sys.exit(1)
+
+    strategy_list = [s.strip() for s in strategies.split(",")] if strategies else None
+
+    try:
+        result = generate(eval_suite, strategies=strategy_list, count=count)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    # Serialize to YAML
+    data = {
+        "name": result.name,
+        "agent": result.agent,
+        "defaults": result.defaults,
+        "cases": [
+            {
+                "name": c.name,
+                "input": c.input,
+                "expected": c.expected,
+                "grader": c.grader,
+                **({"grader_config": c.grader_config} if c.grader_config else {}),
+                **({"tags": c.tags} if c.tags else {}),
+            }
+            for c in result.cases
+        ],
+    }
+
+    import yaml as _yaml
+    with open(output, "w") as f:
+        _yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+
+    click.echo(f"Generated {len(result.cases)} cases ({len(result.cases) - len(eval_suite.cases)} new) → {output}")
+
+
 @cli.command("badge")
 @click.option("--run", "run_id", required=True, help="Run ID.")
 @click.option("--output", "-o", required=True, type=click.Path(), help="Output SVG path.")
@@ -537,3 +595,79 @@ def import_agentlens_cmd(
     except AgentLensImportError as e:
         click.echo(f"Import error: {e}", err=True)
         sys.exit(1)
+
+
+@cli.command("profile")
+@click.option("--run", "run_id", default=None, help="Run ID to profile.")
+@click.option("--trend", is_flag=True, help="Show trend analysis across runs.")
+@click.option("--suite-filter", "suite_filter", default=None, help="Suite name for trend analysis.")
+@click.option("--limit", default=10, show_default=True, help="Max runs for trend analysis.")
+@click.option("--format", "fmt", default="text", type=click.Choice(["text", "json", "csv"]),
+              show_default=True, help="Output format.")
+@click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
+def profile_cmd(run_id: Optional[str], trend: bool, suite_filter: Optional[str],
+                limit: int, fmt: str, db: str) -> None:
+    """Profile a run for latency/cost analysis and outlier detection."""
+    import csv as csv_mod
+    import io
+    import json as json_mod
+    from dataclasses import asdict
+
+    from agenteval.profiler import Profiler, trend_analysis
+
+    if not run_id and not trend:
+        click.echo("Error: Specify --run <id> or --trend.", err=True)
+        sys.exit(1)
+
+    store = ResultStore(db)
+    try:
+        if run_id:
+            eval_run = store.get_run(run_id)
+            if eval_run is None:
+                click.echo(f"Error: Run '{run_id}' not found.", err=True)
+                sys.exit(1)
+            profile = Profiler().profile_run(eval_run)
+
+            if fmt == "json":
+                click.echo(json_mod.dumps(asdict(profile), indent=2))
+            elif fmt == "csv":
+                buf = io.StringIO()
+                writer = csv_mod.writer(buf)
+                writer.writerow(["case_name", "latency_ms", "cost_usd", "is_outlier", "z_score"])
+                for r in profile.results:
+                    writer.writerow([r.case_name, r.latency_ms, f"{r.cost_usd:.4f}",
+                                     r.is_outlier, f"{r.z_score:.2f}"])
+                click.echo(buf.getvalue().rstrip())
+            else:
+                click.echo(f"\n{'='*60}")
+                click.echo(f"Profile: Run {run_id}")
+                click.echo(f"{'='*60}")
+                click.echo(f"\n{'Case':<30} {'Latency':>10} {'Cost':>10} {'Status'}")
+                click.echo("-" * 65)
+                for r in profile.results:
+                    flag = " ⚠️" if r.is_outlier else ""
+                    click.echo(f"  {r.case_name:<28} {r.latency_ms:>8}ms ${r.cost_usd:>8.4f} {flag}")
+                click.echo(f"\nMean latency: {profile.mean_latency:.0f}ms  "
+                           f"Std: {profile.std_latency:.0f}ms  "
+                           f"Total cost: ${profile.total_cost:.4f}  "
+                           f"Outliers: {profile.outlier_count}")
+                if profile.recommendations:
+                    click.echo("\nRecommendations:")
+                    for rec in profile.recommendations:
+                        click.echo(f"  • {rec}")
+                click.echo()
+
+        if trend:
+            runs = store.list_runs(suite=suite_filter)[:limit]
+            if not runs:
+                click.echo("No runs found for trend analysis.")
+                return
+            result = trend_analysis(runs)
+            click.echo(f"\nTrend Analysis ({len(runs)} runs)")
+            click.echo("-" * 40)
+            for case, direction in result.case_trends.items():
+                click.echo(f"  {case:<25} {direction}")
+            click.echo(f"\nOverall: {result.overall_direction}  Cost: {result.cost_trend}")
+            click.echo()
+    finally:
+        store.close()

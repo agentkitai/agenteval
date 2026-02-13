@@ -82,6 +82,7 @@ async def run_suite(
     run_id: Optional[str] = None,
     parallel: int = 1,
     on_result: Optional[Callable[[EvalResult], None]] = None,
+    adapter: Optional[object] = None,
 ) -> EvalRun:
     """Run all cases in a suite and return an EvalRun.
 
@@ -89,6 +90,9 @@ async def run_suite(
         parallel: Max concurrent cases. 1 = sequential (default).
         on_result: Callback fired as each case completes.
     """
+    if adapter is not None:
+        agent_fn = adapter.invoke  # type: ignore[assignment]
+
     if parallel < 1:
         raise ValueError("parallel must be >= 1")
 
