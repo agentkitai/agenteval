@@ -1,0 +1,36 @@
+name: AgentEval CI
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install agenteval
+
+      - name: Run evaluation
+        run: agenteval ci suite.yaml --agent myagent:run --format json -o results.json
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: agenteval github-comment --run latest
+
+      - name: Generate badge
+        run: agenteval badge --run latest --output badge.svg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: badge
+          path: badge.svg

@@ -378,6 +378,73 @@ def ci_cmd(suite_path: str, agent: str, min_pass_rate: float, max_regression: fl
     sys.exit(0 if ci_result.passed else 1)
 
 
+@cli.command("github-comment")
+@click.option("--run", "run_id", required=True, help="Run ID to comment on.")
+@click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Print comment without posting.")
+def github_comment_cmd(run_id: str, db: str, dry_run: bool) -> None:
+    """Post or update a GitHub PR comment with eval results."""
+    from agenteval.ci import CIConfig, check_thresholds
+    from agenteval.formatters.github_comment import format_github_comment
+    store = ResultStore(db)
+    try:
+        eval_run = store.get_run(run_id)
+        if eval_run is None:
+            click.echo(f"Error: Run '{run_id}' not found.", err=True)
+            sys.exit(1)
+    finally:
+        store.close()
+
+    ci_result = check_thresholds(eval_run, CIConfig())
+    comment = format_github_comment(ci_result, eval_run)
+
+    if dry_run:
+        click.echo(comment)
+        return
+
+    token = os.environ.get("GITHUB_TOKEN")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not all([token, repo, event_path]):
+        click.echo("Error: GITHUB_TOKEN, GITHUB_REPOSITORY, and GITHUB_EVENT_PATH must be set.", err=True)
+        sys.exit(1)
+
+    import json as _json
+    with open(event_path) as f:
+        event = _json.load(f)
+    pr_number = event.get("pull_request", {}).get("number") or event.get("number")
+    if not pr_number:
+        click.echo("Error: Could not determine PR number from GITHUB_EVENT_PATH.", err=True)
+        sys.exit(1)
+
+    from agenteval.github import GitHubClient
+    client = GitHubClient(token, repo, int(pr_number))
+    client.post_or_update_comment(comment)
+    click.echo(f"Comment posted to {repo}#{pr_number}")
+
+
+@cli.command("badge")
+@click.option("--run", "run_id", required=True, help="Run ID.")
+@click.option("--output", "-o", required=True, type=click.Path(), help="Output SVG path.")
+@click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
+def badge_cmd(run_id: str, output: str, db: str) -> None:
+    """Generate a pass-rate badge SVG."""
+    from agenteval.badge import generate_badge
+    from agenteval.ci import CIConfig, check_thresholds
+    store = ResultStore(db)
+    try:
+        eval_run = store.get_run(run_id)
+        if eval_run is None:
+            click.echo(f"Error: Run '{run_id}' not found.", err=True)
+            sys.exit(1)
+    finally:
+        store.close()
+
+    ci_result = check_thresholds(eval_run, CIConfig())
+    generate_badge(ci_result.pass_rate, output)
+    click.echo(f"Badge written to {output}")
+
+
 @cli.command("import")
 @click.option("--from", "source", required=True, type=click.Choice(["agentlens"]), help="Import source.")
 @click.option("--db", required=True, type=click.Path(), help="Path to source database.")
