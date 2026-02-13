@@ -25,6 +25,10 @@ def _ensure_registry() -> None:
     from agenteval.graders.tool_check import ToolCheckGrader
     from agenteval.graders.llm_judge import LLMJudgeGrader
     from agenteval.graders.custom import CustomGrader
+    from agenteval.graders.json_schema import JsonSchemaGrader
+    from agenteval.graders.semantic import SemanticGrader
+    from agenteval.graders.latency import LatencyGrader
+    from agenteval.graders.cost import CostGrader
 
     _GRADER_REGISTRY.update({
         "exact": ExactGrader,
@@ -33,6 +37,10 @@ def _ensure_registry() -> None:
         "tool-check": ToolCheckGrader,
         "llm-judge": LLMJudgeGrader,
         "custom": CustomGrader,
+        "json_schema": JsonSchemaGrader,
+        "semantic": SemanticGrader,
+        "latency": LatencyGrader,
+        "cost": CostGrader,
     })
 
 

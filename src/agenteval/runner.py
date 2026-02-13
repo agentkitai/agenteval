@@ -80,12 +80,47 @@ async def run_suite(
     store: Optional[ResultStore] = None,
     timeout: float = 30.0,
     run_id: Optional[str] = None,
+    parallel: int = 1,
+    on_result: Optional[Callable[[EvalResult], None]] = None,
 ) -> EvalRun:
-    """Run all cases in a suite and return an EvalRun."""
-    results = []
-    for case in suite.cases:
-        result = await _run_case(case, agent_fn, timeout)
-        results.append(result)
+    """Run all cases in a suite and return an EvalRun.
+
+    Args:
+        parallel: Max concurrent cases. 1 = sequential (default).
+        on_result: Callback fired as each case completes.
+    """
+    if parallel < 1:
+        raise ValueError("parallel must be >= 1")
+
+    def _fire_callback(result: EvalResult) -> None:
+        if on_result is not None:
+            try:
+                on_result(result)
+            except Exception:
+                pass  # Don't let callback errors crash the run
+
+    if parallel == 1:
+        # Sequential: preserves original behavior exactly
+        results = []
+        for case in suite.cases:
+            result = await _run_case(case, agent_fn, timeout)
+            _fire_callback(result)
+            results.append(result)
+    else:
+        # Parallel with semaphore
+        sem = asyncio.Semaphore(parallel)
+        results_by_index: dict[int, EvalResult] = {}
+
+        async def _run_with_sem(index: int, case: EvalCase) -> None:
+            async with sem:
+                result = await _run_case(case, agent_fn, timeout)
+                results_by_index[index] = result
+                _fire_callback(result)
+
+        await asyncio.gather(
+            *(_run_with_sem(i, case) for i, case in enumerate(suite.cases))
+        )
+        results = [results_by_index[i] for i in range(len(suite.cases))]
 
     total = len(results)
     passed = sum(1 for r in results if r.passed)

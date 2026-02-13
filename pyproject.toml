@@ -28,10 +28,12 @@ dependencies = [
     "pyyaml>=6.0",
     "click>=8.0",
     "httpx>=0.24",
+    "jsonschema>=4.0",
 ]
 
 [project.optional-dependencies]
 stats = ["scipy>=1.9"]
+semantic = ["sentence-transformers>=2.0"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",

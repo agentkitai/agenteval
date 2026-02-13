@@ -56,10 +56,16 @@ def _resolve_callable(dotted_path: str):
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed per-case output.")
 @click.option("--tag", multiple=True, help="Filter cases by tag (repeatable).")
 @click.option("--timeout", default=30.0, show_default=True, help="Per-case timeout in seconds.")
-def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, timeout: float) -> None:
+@click.option("--parallel", default=1, show_default=True, type=int, help="Max concurrent cases.")
+@click.option("--progress/--no-progress", default=None, help="Show progress bar (default: auto-detect TTY).")
+def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, timeout: float,
+        parallel: int, progress: Optional[bool]) -> None:
     """Run an evaluation suite against an agent."""
     if timeout <= 0:
         click.echo("Error: --timeout must be positive.", err=True)
+        sys.exit(1)
+    if parallel < 1:
+        click.echo("Error: --parallel must be >= 1.", err=True)
         sys.exit(1)
 
     # Load suite
@@ -96,17 +102,32 @@ def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, ti
         click.echo(f"Error: {e.format_message()}", err=True)
         sys.exit(1)
 
+    # Progress bar
+    show_progress = progress if progress is not None else sys.stdout.isatty()
+    progress_reporter = None
+    on_result_cb = None
+    if show_progress:
+        from agenteval.progress import ProgressReporter
+        progress_reporter = ProgressReporter()
+        progress_reporter.start(len(eval_suite.cases))
+
+        def on_result_cb(result):
+            progress_reporter.update(result.case_name, result.passed)
+
     # Run
     store = ResultStore(db)
     try:
         eval_run = asyncio.run(
-            run_suite(eval_suite, agent_fn, store=store, timeout=timeout)
+            run_suite(eval_suite, agent_fn, store=store, timeout=timeout,
+                      parallel=parallel, on_result=on_result_cb)
         )
     except Exception as e:
         click.echo(f"Error during run: {e}", err=True)
         sys.exit(1)
     finally:
         store.close()
+        if progress_reporter is not None:
+            progress_reporter.finish()
 
     # Print results
     _print_run_results(eval_run, verbose)
