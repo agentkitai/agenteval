@@ -11,13 +11,15 @@ from typing import Optional
 
 from agenteval.models import EvalCase
 
-try:
-    import redis
-except ImportError:
-    raise ImportError(
-        "Redis is required for distributed execution. "
-        "Install it with: pip install agentevalkit[distributed]"
-    )
+def _get_redis():
+    try:
+        import redis
+        return redis
+    except ImportError:
+        raise ImportError(
+            "Redis is required for distributed execution. "
+            "Install it with: pip install agentevalkit[distributed]"
+        )
 
 
 class Worker:
@@ -27,6 +29,7 @@ class Worker:
         self.broker_url = broker_url
         self.concurrency = concurrency
         self.worker_id = uuid.uuid4().hex[:12]
+        redis = _get_redis()
         self._redis = redis.Redis.from_url(broker_url, decode_responses=True)
         self._running = False
         self._heartbeat_thread: Optional[threading.Thread] = None
@@ -67,8 +70,8 @@ class Worker:
                 pass  # Can't set signal handler in non-main thread
 
         while self._running:
-            # BRPOP on all task queues
-            keys = self._redis.keys("agenteval:tasks:*")
+            # BRPOP on all task queues (use SCAN to avoid O(N) KEYS)
+            keys = [k for k in self._redis.scan_iter("agenteval:tasks:*", count=100)]
             if not keys:
                 import time
                 time.sleep(1)

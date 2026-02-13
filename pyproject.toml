@@ -36,11 +36,15 @@ stats = ["scipy>=1.9"]
 semantic = ["sentence-transformers>=2.0"]
 crewai = ["crewai>=0.28"]
 autogen = ["pyautogen>=0.2"]
+distributed = [
+    "redis>=4.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "ruff>=0.1",
     "build",
+    "fakeredis>=2.0",
 ]
 
 [project.urls]

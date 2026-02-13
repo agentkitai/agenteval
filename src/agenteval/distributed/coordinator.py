@@ -10,13 +10,15 @@ from typing import Optional
 
 from agenteval.models import EvalCase, EvalResult, EvalRun, EvalSuite
 
-try:
-    import redis
-except ImportError:
-    raise ImportError(
-        "Redis is required for distributed execution. "
-        "Install it with: pip install agentevalkit[distributed]"
-    )
+def _get_redis():
+    try:
+        import redis
+        return redis
+    except ImportError:
+        raise ImportError(
+            "Redis is required for distributed execution. "
+            "Install it with: pip install agentevalkit[distributed]"
+        )
 
 
 class Coordinator:
@@ -26,6 +28,7 @@ class Coordinator:
         self.broker_url = broker_url
         self.timeout = timeout
         self.worker_timeout = worker_timeout
+        redis = _get_redis()
         self._redis = redis.Redis.from_url(broker_url, decode_responses=True)
 
     def _has_workers(self) -> bool:
@@ -52,7 +55,7 @@ class Coordinator:
         task_key = f"agenteval:tasks:{rid}"
         result_key = f"agenteval:results:{rid}"
 
-        # Push each case as a task
+        # Push each case as a task (set TTL for cleanup)
         for case in suite.cases:
             task = {
                 "run_id": rid,
@@ -68,19 +71,28 @@ class Coordinator:
             }
             self._redis.lpush(task_key, json.dumps(task))
 
+        # Set TTL on task and result keys for cleanup (2x timeout)
+        ttl = max(self.timeout * 2, 600)
+        self._redis.expire(task_key, ttl)
+
         # Collect results
         results: list[EvalResult] = []
         expected = len(suite.cases)
         remaining_timeout = self.timeout
 
-        while len(results) < expected and remaining_timeout > 0:
-            wait = min(remaining_timeout, 5)
-            item = self._redis.brpop(result_key, timeout=wait)
+        import time as _time
+        deadline = _time.monotonic() + self.timeout
+
+        while len(results) < expected:
+            remaining = deadline - _time.monotonic()
+            if remaining <= 0:
+                break
+            wait = min(remaining, 5)
+            item = self._redis.brpop(result_key, timeout=int(max(wait, 1)))
             if item is not None:
                 _, raw = item
                 data = json.loads(raw)
                 results.append(EvalResult(**data))
-            remaining_timeout -= wait
 
         if len(results) < expected:
             warnings.warn(

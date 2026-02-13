@@ -59,8 +59,12 @@ def _resolve_callable(dotted_path: str):
 @click.option("--parallel", default=1, show_default=True, type=int, help="Max concurrent cases.")
 @click.option("--progress/--no-progress", default=None, help="Show progress bar (default: auto-detect TTY).")
 @click.option("--adapter", "adapter_name", default=None, help="Adapter name (e.g. 'langchain').")
+@click.option("--workers", default=None, help="Redis URL for distributed execution.")
+@click.option("--worker-timeout", "worker_timeout", default=30, show_default=True, type=int,
+              help="Seconds to wait for workers before falling back to local.")
 def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, timeout: float,
-        parallel: int, progress: Optional[bool], adapter_name: Optional[str] = None) -> None:
+        parallel: int, progress: Optional[bool], adapter_name: Optional[str] = None,
+        workers: Optional[str] = None, worker_timeout: int = 30) -> None:
     """Run an evaluation suite against an agent."""
     if timeout <= 0:
         click.echo("Error: --timeout must be positive.", err=True)
@@ -109,6 +113,22 @@ def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, ti
     if _adapter_name:
         from agenteval.adapters import get_adapter
         _adapter_instance = get_adapter(_adapter_name, agent=agent_fn)
+
+    # Distributed execution
+    if workers:
+        from agenteval.distributed.coordinator import Coordinator
+
+        coordinator = Coordinator(workers, timeout=int(timeout * len(eval_suite.cases)),
+                                  worker_timeout=worker_timeout)
+        try:
+            eval_run = coordinator.distribute(eval_suite, agent_ref)
+        except Exception as e:
+            click.echo(f"Error during distributed run: {e}", err=True)
+            sys.exit(1)
+        _print_run_results(eval_run, verbose)
+        if eval_run.summary.get("failed", 0) > 0:
+            sys.exit(1)
+        return
 
     # Progress bar
     show_progress = progress if progress is not None else sys.stdout.isatty()
@@ -714,3 +734,25 @@ def profile_cmd(run_id: Optional[str], trend: bool, suite_filter: Optional[str],
             click.echo()
     finally:
         store.close()
+
+
+@cli.command("worker")
+@click.option("--broker", required=True, help="Redis broker URL.")
+@click.option("--concurrency", default=1, show_default=True, type=int, help="Max concurrent tasks.")
+def worker_cmd(broker: str, concurrency: int) -> None:
+    """Start a distributed worker that processes eval tasks."""
+    from agenteval.distributed.worker import Worker
+
+    if concurrency < 1:
+        click.echo("Error: --concurrency must be >= 1.", err=True)
+        sys.exit(1)
+
+    worker = Worker(broker, concurrency=concurrency)
+    click.echo(f"Starting worker {worker.worker_id} (concurrency={concurrency})...")
+    try:
+        worker.start()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        worker.stop()
+        click.echo("Worker stopped.")
