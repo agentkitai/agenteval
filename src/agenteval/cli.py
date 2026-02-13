@@ -307,6 +307,77 @@ def compare(run_ids: tuple, db: str, alpha: float, threshold: float, stats: bool
     click.echo()
 
 
+@cli.command("ci")
+@click.argument("suite_path", type=click.Path(exists=True))
+@click.option("--agent", required=True, help="Agent callable as 'module:func'.")
+@click.option("--min-pass-rate", default=0.8, show_default=True, type=float, help="Minimum pass rate (0-1).")
+@click.option("--max-regression", default=10.0, show_default=True, type=float, help="Max regression percentage.")
+@click.option("--baseline", default=None, help="Baseline run ID for regression detection.")
+@click.option("--format", "fmt", default="text", type=click.Choice(["text", "json", "junit"]), show_default=True,
+              help="Output format.")
+@click.option("--output", "-o", default=None, type=click.Path(), help="Write output to file.")
+@click.option("--parallel", default=1, show_default=True, type=int, help="Max concurrent cases.")
+@click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
+def ci_cmd(suite_path: str, agent: str, min_pass_rate: float, max_regression: float,
+           baseline: Optional[str], fmt: str, output: Optional[str], parallel: int, db: str) -> None:
+    """Run a suite and check CI thresholds. Exit 0 if passed, 1 if failed."""
+    if not 0.0 <= min_pass_rate <= 1.0:
+        click.echo("Error: --min-pass-rate must be between 0.0 and 1.0.", err=True)
+        sys.exit(1)
+    if max_regression < 0.0 or max_regression > 100.0:
+        click.echo("Error: --max-regression must be between 0 and 100.", err=True)
+        sys.exit(1)
+    from agenteval.ci import CIConfig, check_thresholds
+
+    try:
+        eval_suite = load_suite(suite_path)
+    except LoadError as e:
+        click.echo(f"Error loading suite: {e}", err=True)
+        sys.exit(1)
+
+    try:
+        agent_fn = _resolve_callable(agent)
+    except click.BadParameter as e:
+        click.echo(f"Error: {e.format_message()}", err=True)
+        sys.exit(1)
+
+    store = ResultStore(db)
+    try:
+        eval_run = asyncio.run(
+            run_suite(eval_suite, agent_fn, store=store, parallel=parallel)
+        )
+
+        baseline_run = None
+        if baseline:
+            baseline_run = store.get_run(baseline)
+            if baseline_run is None:
+                click.echo(f"Error: Baseline run '{baseline}' not found.", err=True)
+                sys.exit(1)
+    finally:
+        store.close()
+
+    config = CIConfig(min_pass_rate=min_pass_rate, max_regression_pct=max_regression)
+    ci_result = check_thresholds(eval_run, config, baseline=baseline_run)
+
+    # Format output
+    if fmt == "json":
+        from agenteval.formatters.json_fmt import format_json
+        text = format_json(ci_result, eval_run)
+    elif fmt == "junit":
+        from agenteval.formatters.junit import format_junit
+        text = format_junit(ci_result, eval_run)
+    else:
+        text = ci_result.summary
+
+    if output:
+        with open(output, "w") as f:
+            f.write(text)
+    else:
+        click.echo(text)
+
+    sys.exit(0 if ci_result.passed else 1)
+
+
 @cli.command("import")
 @click.option("--from", "source", required=True, type=click.Choice(["agentlens"]), help="Import source.")
 @click.option("--db", required=True, type=click.Path(), help="Path to source database.")
@@ -329,3 +400,73 @@ def import_cmd(source: str, db: str, output: str, name: Optional[str], grader: s
 
         out_path = export_suite_yaml(suite, output)
         click.echo(f"Imported {len(suite.cases)} cases → {out_path}")
+
+
+@cli.command("import-agentlens")
+@click.option("--session", default=None, help="Single session ID to import.")
+@click.option("--batch", is_flag=True, help="Batch import multiple sessions.")
+@click.option("--server", required=True, help="AgentLens server URL.")
+@click.option("--api-key", default=None, help="API key for AgentLens server.")
+@click.option("--output", "-o", required=True, type=click.Path(), help="Output YAML suite path.")
+@click.option("--filter-tag", multiple=True, help="Filter sessions by tag (batch mode).")
+@click.option("--limit", default=50, show_default=True, type=int, help="Max sessions for batch import.")
+@click.option("--interactive", is_flag=True, help="Review cases interactively before saving.")
+@click.option("--auto-assertions", is_flag=True, help="Auto-generate assertions from session data.")
+def import_agentlens_cmd(
+    session: Optional[str],
+    batch: bool,
+    server: str,
+    api_key: Optional[str],
+    output: str,
+    filter_tag: tuple,
+    limit: int,
+    interactive: bool,
+    auto_assertions: bool,
+) -> None:
+    """Import sessions from an AgentLens server API."""
+    from agenteval.importers.agentlens import (
+        AgentLensClient,
+        AgentLensImportError,
+        batch_import,
+        export_suite_yaml,
+        import_session,
+    )
+
+    if not session and not batch:
+        click.echo("Error: Specify --session <id> or --batch.", err=True)
+        sys.exit(1)
+
+    try:
+        client = AgentLensClient(server, api_key=api_key)
+
+        if batch:
+            tags = list(filter_tag) if filter_tag else None
+            suite = batch_import(client, filter_tags=tags, limit=limit)
+        else:
+            session_data = client.fetch_session(session)
+            case = import_session(session_data)
+            cases = [case] if case else []
+
+            if auto_assertions and cases:
+                from agenteval.importers.assertions import AssertionGenerator
+
+                for c in cases:
+                    assertions = AssertionGenerator.from_session(session_data)
+                    if assertions:
+                        c.grader_config["assertions"] = assertions
+
+            from agenteval.models import EvalSuite as _EvalSuite
+            suite = _EvalSuite(name="agentlens-import", agent="", cases=cases)
+
+        if interactive and suite.cases:
+            from agenteval.importers.reviewer import InteractiveReviewer
+
+            reviewer = InteractiveReviewer()
+            suite.cases = reviewer.review(suite.cases)
+
+        out_path = export_suite_yaml(suite, output)
+        click.echo(f"Imported {len(suite.cases)} cases → {out_path}")
+
+    except AgentLensImportError as e:
+        click.echo(f"Import error: {e}", err=True)
+        sys.exit(1)

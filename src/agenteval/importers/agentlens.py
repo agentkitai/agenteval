@@ -12,6 +12,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import httpx
 import yaml
 
 from agenteval.models import EvalCase, EvalSuite
@@ -19,6 +20,81 @@ from agenteval.models import EvalCase, EvalSuite
 
 class AgentLensImportError(Exception):
     """Raised when import fails."""
+
+
+# ── HTTP Client for AgentLens server API ────────────────────────────────
+
+
+class AgentLensClient:
+    """HTTP client for the AgentLens server API."""
+
+    def __init__(self, server_url: str, api_key: Optional[str] = None) -> None:
+        self.server_url = server_url.rstrip("/")
+        self.api_key = api_key
+
+    def _headers(self) -> Dict[str, str]:
+        headers: Dict[str, str] = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    def _get(self, url: str, **kwargs: Any) -> Any:
+        """Perform a GET request, creating a client if needed."""
+        try:
+            with httpx.Client() as http:
+                resp = http.get(url, headers=self._headers(), **kwargs)
+                resp.raise_for_status()
+                return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise AgentLensImportError(
+                f"Failed to fetch {url}: HTTP {e.response.status_code}"
+            ) from e
+        except httpx.RequestError as e:
+            raise AgentLensImportError(f"Request failed: {e}") from e
+
+    def fetch_session(self, session_id: str) -> dict:
+        """Fetch a single session by ID from the AgentLens server."""
+        return self._get(f"{self.server_url}/sessions/{session_id}")
+
+    def list_sessions(
+        self, filter_tags: Optional[List[str]] = None, limit: int = 50
+    ) -> List[dict]:
+        """List sessions from the AgentLens server."""
+        params: Dict[str, Any] = {"limit": limit}
+        if filter_tags:
+            params["tags"] = ",".join(filter_tags)
+        return self._get(f"{self.server_url}/sessions", params=params)
+
+
+def import_session(session_data: Dict[str, Any], grader: str = "contains") -> Optional[EvalCase]:
+    """Convert a session dict (from API or other source) to an EvalCase.
+
+    The session_data dict should have keys: id, agent, input, output, events.
+    Returns None if the session has no usable input.
+    """
+    events = session_data.get("events") or []
+    return _session_to_case(session_data, events, grader=grader)
+
+
+def batch_import(
+    client: AgentLensClient,
+    filter_tags: Optional[List[str]] = None,
+    limit: int = 50,
+) -> EvalSuite:
+    """Import multiple sessions from AgentLens server as an EvalSuite.
+
+    Calls list_sessions with filter, fetches each, combines into a suite.
+    """
+    session_summaries = client.list_sessions(filter_tags=filter_tags, limit=limit)
+    cases: List[EvalCase] = []
+    for summary in session_summaries:
+        session_id = summary.get("id", "")
+        session_data = client.fetch_session(session_id)
+        case = import_session(session_data)
+        if case is not None:
+            cases.append(case)
+
+    return EvalSuite(name="agentlens-batch-import", agent="", cases=cases)
 
 
 # Expected AgentLens schema tables/columns
