@@ -12,8 +12,9 @@ from agenteval.models import AgentResult
 class AutoGenAdapter(BaseAdapter):
     """Adapter for AutoGen agent objects."""
 
-    def __init__(self, agent: Any) -> None:
+    def __init__(self, agent: Any, recipient: Any = None) -> None:
         self.agent = agent
+        self.recipient = recipient
 
     def invoke(self, input: str) -> AgentResult:
         start = time.perf_counter()
@@ -22,7 +23,10 @@ class AutoGenAdapter(BaseAdapter):
         if hasattr(self.agent, "run") and not hasattr(self.agent, "initiate_chat"):
             response = self.agent.run(input)
         else:
-            response = self.agent.initiate_chat(message=input)
+            kwargs: dict[str, Any] = {"message": input}
+            if self.recipient is not None:
+                kwargs["recipient"] = self.recipient
+            response = self.agent.initiate_chat(**kwargs)
 
         latency_ms = int((time.perf_counter() - start) * 1000)
 
