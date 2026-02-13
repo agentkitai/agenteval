@@ -57,14 +57,9 @@ class TestProfilerCore:
         assert pr.cost_usd == 0.01
 
     def test_outlier_detection(self):
-        # 4 tightly clustered cases + 1 extreme outlier
-        results = [
-            _make_result("a", 100, 0.01),
-            _make_result("b", 100, 0.01),
-            _make_result("c", 100, 0.01),
-            _make_result("d", 100, 0.01),
-            _make_result("outlier", 1000, 0.01),
-        ]
+        # Many tightly clustered cases + 1 extreme outlier
+        results = [_make_result(f"n{i}", 100, 0.01) for i in range(10)]
+        results.append(_make_result("outlier", 1000, 0.01))
         run = _make_run("r1", results)
         profile = Profiler().profile_run(run)
         outliers = [r for r in profile.results if r.is_outlier]
@@ -163,12 +158,8 @@ class TestRecommendations:
             _make_result("slow", 400, 0.01),  # >3x avg of 250? No. Need >3x mean
         ]
         # mean = 250, 3x = 750 — need a much slower one
-        results = [
-            _make_result("a", 100, 0.01),
-            _make_result("b", 100, 0.01),
-            _make_result("c", 100, 0.01),
-            _make_result("slow", 1000, 0.01),
-        ]
+        results = [_make_result(f"n{i}", 100, 0.01) for i in range(10)]
+        results.append(_make_result("slow", 1000, 0.01))
         run = _make_run("r1", results)
         profile = Profiler().profile_run(run)
         recs = generate_recommendations(profile)
@@ -185,13 +176,8 @@ class TestRecommendations:
         assert any("hotspot" in r.lower() for r in recs)
 
     def test_variability_recommendation(self):
-        results = [
-            _make_result("a", 100, 0.01),
-            _make_result("b", 100, 0.01),
-            _make_result("c", 100, 0.01),
-            _make_result("d", 100, 0.01),
-            _make_result("outlier", 1000, 0.01),
-        ]
+        results = [_make_result(f"n{i}", 100, 0.01) for i in range(10)]
+        results.append(_make_result("outlier", 1000, 0.01))
         run = _make_run("r1", results)
         profile = Profiler().profile_run(run)
         recs = generate_recommendations(profile)

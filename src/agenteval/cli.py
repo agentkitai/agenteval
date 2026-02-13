@@ -107,9 +107,8 @@ def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, ti
     _adapter_name = adapter_name or eval_suite.defaults.get("adapter")
     _adapter_instance = None
     if _adapter_name:
-        from agenteval.adapters import _import_agent, get_adapter
-        agent_obj = _import_agent(agent_ref) if agent_ref else agent_fn
-        _adapter_instance = get_adapter(_adapter_name, agent=agent_obj)
+        from agenteval.adapters import get_adapter
+        _adapter_instance = get_adapter(_adapter_name, agent=agent_fn)
 
     # Progress bar
     show_progress = progress if progress is not None else sys.stdout.isatty()

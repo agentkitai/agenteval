@@ -41,10 +41,18 @@ def get_adapter(name: str, **kwargs: Any) -> BaseAdapter:
 
 def _import_agent(agent_ref: str) -> Any:
     """Import an object from a 'module:attr' string."""
+    import os
+    import sys
+
     if ":" not in agent_ref:
         raise ValueError(
             f"agent_ref must use 'module:attr' format, got {agent_ref!r}"
         )
+    # Ensure CWD is importable (matches CLI behavior)
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+
     module_path, attr_name = agent_ref.rsplit(":", 1)
     mod = importlib.import_module(module_path)
     return getattr(mod, attr_name)
