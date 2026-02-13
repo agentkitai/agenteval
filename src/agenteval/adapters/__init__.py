@@ -23,9 +23,13 @@ def _ensure_registry() -> None:
     if _ADAPTER_REGISTRY:
         return
     from agenteval.adapters.langchain import LangChainAdapter
+    from agenteval.adapters.crewai import CrewAIAdapter
+    from agenteval.adapters.autogen import AutoGenAdapter
 
     _ADAPTER_REGISTRY.update({
         "langchain": LangChainAdapter,
+        "crewai": CrewAIAdapter,
+        "autogen": AutoGenAdapter,
     })
 
 
