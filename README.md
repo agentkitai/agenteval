@@ -311,17 +311,6 @@ grader_config:
 
 ---
 
-## Part of the AgentKit Ecosystem
-
-AgentEval works great standalone, and even better with:
-
-- **[AgentLens](https://github.com/amitpaz/agentlens)** — Session recording & observability for AI agents
-- **[Lore](https://github.com/amitpaz/lore)** — Prompt management and versioning
-- **[AgentGate](https://github.com/amitpaz/agentgate)** — API gateway for AI agents
-- **[FormBridge](https://github.com/amitpaz/formbridge)** — Form automation with AI
-
----
-
 ## Contributing
 
 Contributions welcome! This project uses:
@@ -336,6 +325,20 @@ cd agenteval
 pip install -e ".[dev]"
 pytest
 ```
+
+
+## 🧰 AgentKit Ecosystem
+
+| Project | Description | |
+|---------|-------------|-|
+| [AgentLens](https://github.com/agentkitai/agentlens) | Observability & audit trail for AI agents | |
+| [Lore](https://github.com/agentkitai/lore) | Cross-agent memory and lesson sharing | |
+| [AgentGate](https://github.com/agentkitai/agentgate) | Human-in-the-loop approval gateway | |
+| [FormBridge](https://github.com/agentkitai/formbridge) | Agent-human mixed-mode forms | |
+| **AgentEval** | Testing & evaluation framework | ⬅️ you are here |
+| [agentkit-mesh](https://github.com/agentkitai/agentkit-mesh) | Agent discovery & delegation | |
+| [agentkit-cli](https://github.com/agentkitai/agentkit-cli) | Unified CLI orchestrator | |
+| [agentkit-guardrails](https://github.com/agentkitai/agentkit-guardrails) | Reactive policy guardrails | |
 
 ## License
 
