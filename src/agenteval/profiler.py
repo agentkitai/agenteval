@@ -123,13 +123,16 @@ def trend_analysis(runs: List[EvalRun]) -> TrendResult:
         case_trends[name] = _classify_trend(lats)
 
     # Overall direction — average of first-run vs last-run latencies
-    first_lats = [r.latency_ms for r in runs[0].results] if runs[0].results else [0]
-    last_lats = [r.latency_ms for r in runs[-1].results] if runs[-1].results else [0]
-    overall = _classify_trend([int(statistics.mean(first_lats)), int(statistics.mean(last_lats))])
+    first_lats = [r.latency_ms for r in runs[0].results] if runs[0].results else []
+    last_lats = [r.latency_ms for r in runs[-1].results] if runs[-1].results else []
+    if first_lats and last_lats:
+        overall = _classify_trend([int(statistics.mean(first_lats)), int(statistics.mean(last_lats))])
+    else:
+        overall = "stable"
 
     # Cost trend
     run_costs = [sum(r.cost_usd or 0.0 for r in run.results) for run in runs]
-    cost_trend = _classify_trend_floats(run_costs)
+    cost_trend = _classify_trend_floats(run_costs) if run_costs else "stable"
 
     return TrendResult(case_trends=case_trends, overall_direction=overall, cost_trend=cost_trend)
 
