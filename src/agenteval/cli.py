@@ -736,6 +736,183 @@ def profile_cmd(run_id: Optional[str], trend: bool, suite_filter: Optional[str],
         store.close()
 
 
+@cli.command("baseline")
+@click.argument("action", type=click.Choice(["save", "show", "list", "compare"]))
+@click.option("--suite", default=None, help="Suite YAML path (for save) or name (for list/show).")
+@click.option("--agent", default=None, help="Agent callable (for save).")
+@click.option("--branch", default="", help="Branch name.")
+@click.option("--commit", "commit_sha", default="", help="Commit SHA.")
+@click.option("--baseline-db", "baseline_db", default=".agenteval/baselines.db", show_default=True,
+              help="Baseline database path.")
+@click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
+@click.option("--run", "run_id", default=None, help="Run ID to save as baseline.")
+@click.option("--threshold", default=0.05, show_default=True, type=float,
+              help="Regression threshold (fraction).")
+@click.option("--id", "baseline_id", default=None, type=int, help="Baseline ID (for show).")
+def baseline_cmd(action: str, suite: Optional[str], agent: Optional[str],
+                 branch: str, commit_sha: str, baseline_db: str, db: str,
+                 run_id: Optional[str], threshold: float, baseline_id: Optional[int]) -> None:
+    """Manage baselines for regression detection."""
+    from agenteval.baselines import BaselineStore, check_regression
+
+    bstore = BaselineStore(baseline_db)
+    try:
+        if action == "save":
+            if not run_id:
+                click.echo("Error: --run is required for save.", err=True)
+                sys.exit(1)
+            store = ResultStore(db)
+            try:
+                eval_run = store.get_run(run_id)
+            finally:
+                store.close()
+            if eval_run is None:
+                click.echo(f"Error: Run '{run_id}' not found.", err=True)
+                sys.exit(1)
+            bid = bstore.save_baseline(eval_run, branch=branch, commit_sha=commit_sha)
+            click.echo(f"Baseline saved (id={bid}) for suite '{eval_run.suite}'")
+
+        elif action == "show":
+            if baseline_id is not None:
+                entry = bstore.get_baseline(baseline_id)
+            elif suite:
+                entry = bstore.get_latest_baseline(suite, branch=branch)
+            else:
+                click.echo("Error: --suite or --id required for show.", err=True)
+                sys.exit(1)
+            if entry is None:
+                click.echo("No baseline found.")
+                sys.exit(1)
+            click.echo(f"Baseline #{entry.id} | Suite: {entry.suite} | Branch: {entry.branch}")
+            click.echo(f"Commit: {entry.commit_sha} | Created: {entry.created_at[:19]}")
+            click.echo(f"Metrics: pass_rate={entry.metrics.get('pass_rate', 0):.0%}, "
+                        f"total={entry.metrics.get('total', 0)}")
+            for r in entry.results:
+                status = "PASS" if r["passed"] else "FAIL"
+                click.echo(f"  {status}  {r['case_name']} (score={r['score']:.2f})")
+
+        elif action == "list":
+            entries = bstore.list_baselines(suite=suite)
+            if not entries:
+                click.echo("No baselines found.")
+                return
+            click.echo(f"\n{'ID':<6} {'Suite':<20} {'Branch':<15} {'Pass Rate':<10} {'Created'}")
+            click.echo("-" * 70)
+            for e in entries:
+                click.echo(f"{e.id:<6} {e.suite:<20} {e.branch:<15} "
+                           f"{e.metrics.get('pass_rate', 0):<10.0%} {e.created_at[:19]}")
+
+        elif action == "compare":
+            if not run_id:
+                click.echo("Error: --run is required for compare.", err=True)
+                sys.exit(1)
+            store = ResultStore(db)
+            try:
+                eval_run = store.get_run(run_id)
+            finally:
+                store.close()
+            if eval_run is None:
+                click.echo(f"Error: Run '{run_id}' not found.", err=True)
+                sys.exit(1)
+
+            if baseline_id is not None:
+                entry = bstore.get_baseline(baseline_id)
+            else:
+                entry = bstore.get_latest_baseline(eval_run.suite, branch=branch)
+
+            if entry is None:
+                click.echo("No baseline found for comparison.")
+                sys.exit(1)
+
+            result = check_regression(eval_run, entry, threshold=threshold)
+            click.echo(result.summary)
+            if not result.passed:
+                for reg in result.regressions:
+                    click.echo(f"  ▼ {reg['case_name']}: {reg['baseline_score']:.2f} → "
+                               f"{reg['current_score']:.2f} (drop={reg['drop']:.2f})")
+                sys.exit(1)
+    finally:
+        bstore.close()
+
+
+@cli.command("webhook")
+@click.option("--run", "run_id", required=True, help="Run ID.")
+@click.option("--url", required=True, help="Webhook URL.")
+@click.option("--format", "fmt", default="generic", type=click.Choice(["generic", "slack", "discord"]),
+              show_default=True, help="Payload format.")
+@click.option("--failure-only", is_flag=True, help="Only send on failure.")
+@click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
+def webhook_cmd(run_id: str, url: str, fmt: str, failure_only: bool, db: str) -> None:
+    """Send a webhook notification for an eval run."""
+    from agenteval.webhooks import WebhookConfig, send_webhook
+
+    store = ResultStore(db)
+    try:
+        eval_run = store.get_run(run_id)
+    finally:
+        store.close()
+
+    if eval_run is None:
+        click.echo(f"Error: Run '{run_id}' not found.", err=True)
+        sys.exit(1)
+
+    config = WebhookConfig(url=url, format=fmt, on_failure_only=failure_only)
+    result = send_webhook(eval_run, config)
+    if result.success:
+        click.echo(f"Webhook sent successfully (status={result.status_code})")
+    else:
+        click.echo(f"Webhook failed: {result.error}", err=True)
+        sys.exit(1)
+
+
+@cli.command("coverage")
+@click.option("--suite", required=True, type=click.Path(exists=True), help="Path to YAML suite file.")
+@click.option("--run", "run_id", default=None, help="Run ID (uses latest if not specified).")
+@click.option("--capabilities", default=None, help="Comma-separated declared capabilities.")
+@click.option("--min-coverage", default=0.0, type=float, help="Minimum coverage percentage (0-100).")
+@click.option("--db", default="agenteval.db", show_default=True, help="SQLite database path.")
+def coverage_cmd(suite: str, run_id: Optional[str], capabilities: Optional[str],
+                 min_coverage: float, db: str) -> None:
+    """Report capability coverage metrics."""
+    from agenteval.capabilities import (
+        CoverageConfig,
+        check_coverage_threshold,
+        compute_coverage,
+        format_coverage_report,
+    )
+
+    try:
+        eval_suite = load_suite(suite)
+    except LoadError as e:
+        click.echo(f"Error loading suite: {e}", err=True)
+        sys.exit(1)
+
+    store = ResultStore(db)
+    try:
+        if run_id:
+            eval_run = store.get_run(run_id)
+        else:
+            runs = store.list_runs(suite=eval_suite.name)
+            eval_run = runs[0] if runs else None
+    finally:
+        store.close()
+
+    if eval_run is None:
+        click.echo("Error: No run found. Specify --run or run the suite first.", err=True)
+        sys.exit(1)
+
+    declared = [c.strip() for c in capabilities.split(",")] if capabilities else []
+    config = CoverageConfig(declared_capabilities=declared, min_coverage_pct=min_coverage)
+    report = compute_coverage(eval_run, eval_suite, config)
+
+    click.echo(format_coverage_report(report))
+
+    if not check_coverage_threshold(report, min_coverage):
+        click.echo(click.style(f"\n✗ Coverage {report.coverage_pct:.0f}% below threshold {min_coverage:.0f}%",
+                               fg="red"))
+        sys.exit(1)
+
+
 @cli.command("worker")
 @click.option("--broker", required=True, help="Redis broker URL.")
 @click.option("--concurrency", default=1, show_default=True, type=int, help="Max concurrent tasks.")

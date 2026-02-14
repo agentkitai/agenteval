@@ -8,7 +8,8 @@ import yaml
 
 from agenteval.models import EvalCase, EvalSuite
 
-VALID_GRADERS = {"exact", "contains", "regex", "tool-check", "llm-judge", "custom"}
+VALID_GRADERS = {"exact", "contains", "regex", "tool-check", "llm-judge", "custom",
+                  "json_schema", "semantic", "latency", "cost"}
 
 
 class LoadError(Exception):
