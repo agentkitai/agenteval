@@ -1,7 +1,7 @@
 # AgentEval 🧪
 
 [![PyPI](https://img.shields.io/pypi/v/agentevalkit)](https://pypi.org/project/agentevalkit/)
-[![Tests](https://img.shields.io/badge/tests-127%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -134,12 +134,24 @@ Run the same suite multiple times and compare groups: `agenteval compare RUN_A1,
 
 ### 🔗 AgentLens Integration
 
-Import real agent sessions from [AgentLens](https://github.com/amitpaz/agentlens) as test suites:
+Import real agent sessions from [AgentLens](https://github.com/agentkitai/agentlens) as test suites:
 
 ```bash
+# From AgentLens SQLite database
 agenteval import --from agentlens --db sessions.db --output suite.yaml --grader contains
-# Imported 42 cases → suite.yaml
+
+# From AgentLens server API
+agenteval import-agentlens --url http://localhost:3000 --output suite.yaml --grader contains
+
+# With filtering and interactive review
+agenteval import --from agentlens --db sessions.db --output suite.yaml --filter-tag production --auto-assertions --interactive
 ```
+
+**Import modes:**
+- **SQLite mode** (`import --from agentlens --db path`) — reads directly from an AgentLens database file
+- **Server mode** (`import-agentlens --url URL`) — fetches sessions via the AgentLens HTTP API
+
+Sessions are converted to eval cases with input/output mapping and optional tool-call assertions. Use `--auto-assertions` to automatically generate expected fields from session data, and `--interactive` to review each case before saving.
 
 Turn production traffic into regression tests — no manual test writing needed.
 
@@ -311,11 +323,102 @@ grader_config:
 
 ---
 
+## Adapters
+
+Adapters let you test agents built with popular frameworks without writing a custom callable.
+
+```bash
+pip install agentevalkit[langchain]   # LangChain
+pip install agentevalkit[crewai]      # CrewAI
+pip install agentevalkit[autogen]     # AutoGen
+```
+
+| Adapter | Framework Method | Install Extra |
+|---------|-----------------|---------------|
+| `langchain` | `agent.invoke(input)` | `[langchain]` |
+| `crewai` | `crew.kickoff(inputs={"input": ...})` | `[crewai]` |
+| `autogen` | `agent.run(input)` or `agent.initiate_chat(message=...)` | `[autogen]` |
+
+Usage with YAML suite defaults:
+
+```yaml
+# suite.yaml
+name: my-tests
+agent: my_module:my_chain
+defaults:
+  adapter: langchain
+```
+
+Or via CLI:
+
+```bash
+agenteval run --suite suite.yaml --adapter langchain
+```
+
+Each adapter extracts output, tool calls, and token usage from the framework's response format into a standard `AgentResult`.
+
+---
+
+## Distributed Execution
+
+Scale eval suites across multiple workers using Redis as a broker.
+
+### Setup
+
+```bash
+pip install agentevalkit[distributed]
+```
+
+### Start Workers
+
+```bash
+# Terminal 1: Start a worker
+agenteval worker --broker redis://localhost:6379 --agent my_module:my_agent
+
+# Terminal 2: Start another worker
+agenteval worker --broker redis://localhost:6379 --agent my_module:my_agent
+```
+
+### Run with Workers
+
+```bash
+agenteval run --suite suite.yaml --workers redis://localhost:6379 --worker-timeout 60
+```
+
+### How It Works
+
+1. The coordinator pushes eval cases to a Redis queue
+2. Workers pop cases, execute the agent, and push results back
+3. The coordinator collects results and builds the final `EvalRun`
+4. If no workers are detected, execution falls back to local mode automatically
+
+### Configuration
+
+- `--workers URL` — Redis broker URL (supports `redis://` and `rediss://` for TLS)
+- `--worker-timeout N` — Seconds to wait for worker results (default: 30)
+- Workers register heartbeats and are automatically detected by the coordinator
+
+> **Security:** Use `rediss://` URLs with authentication for production deployments. See [docs/troubleshooting.md](docs/troubleshooting.md) for Redis security guidance.
+
+---
+
+## Troubleshooting
+
+See [docs/troubleshooting.md](docs/troubleshooting.md) for solutions to common issues including:
+
+- Agent callable import errors (`module:function` format)
+- Missing dependency extras (`[distributed]`, `[langchain]`, etc.)
+- OpenAI API key setup for `llm-judge` grader
+- Compare command syntax
+- Redis connection issues for distributed execution
+
+---
+
 ## Contributing
 
 Contributions welcome! This project uses:
 
-- **pytest** for testing (127 tests passing)
+- **pytest** for testing
 - **ruff** for linting
 - **src layout** (`src/agenteval/`)
 

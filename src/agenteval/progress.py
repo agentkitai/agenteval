@@ -11,6 +11,8 @@ class ProgressReporter:
     def __init__(self) -> None:
         self._total = 0
         self._completed = 0
+        self._passed = 0
+        self._failed = 0
         self._rich_progress: Optional[object] = None
         self._rich_task: Optional[object] = None
 
@@ -18,7 +20,12 @@ class ProgressReporter:
         self._total = total
         self._completed = 0
         try:
-            from rich.progress import Progress, BarColumn, TextColumn, MofNCompleteColumn
+            from rich.progress import (
+                BarColumn,
+                MofNCompleteColumn,
+                Progress,
+                TextColumn,
+            )
             self._rich_progress = Progress(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
@@ -31,11 +38,16 @@ class ProgressReporter:
 
     def update(self, case_name: str, passed: bool) -> None:
         self._completed += 1
+        if passed:
+            self._passed += 1
+        else:
+            self._failed += 1
         if self._rich_progress is not None:
-            self._rich_progress.update(self._rich_task, advance=1, description=case_name)  # type: ignore[union-attr]
+            desc = f"Evaluating [{self._passed} passed, {self._failed} failed]"
+            self._rich_progress.update(self._rich_task, advance=1, description=desc)  # type: ignore[union-attr]
         else:
             icon = "✓" if passed else "✗"
-            print(f"[{self._completed}/{self._total}] {case_name}: {icon}")
+            print(f"[{self._completed}/{self._total}] {case_name}: {icon} ({self._passed} passed, {self._failed} failed)")
 
     def finish(self) -> None:
         if self._rich_progress is not None:

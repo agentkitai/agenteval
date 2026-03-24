@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Dict
+from typing import Dict, Protocol
 
-from agenteval.models import EvalCase, AgentResult, GradeResult
+from agenteval.models import AgentResult, EvalCase, GradeResult
 
 
 class Grader(Protocol):
@@ -19,16 +19,16 @@ _GRADER_REGISTRY: Dict[str, type] = {}
 def _ensure_registry() -> None:
     if _GRADER_REGISTRY:
         return
-    from agenteval.graders.exact import ExactGrader
     from agenteval.graders.contains import ContainsGrader
-    from agenteval.graders.regex import RegexGrader
-    from agenteval.graders.tool_check import ToolCheckGrader
-    from agenteval.graders.llm_judge import LLMJudgeGrader
-    from agenteval.graders.custom import CustomGrader
-    from agenteval.graders.json_schema import JsonSchemaGrader
-    from agenteval.graders.semantic import SemanticGrader
-    from agenteval.graders.latency import LatencyGrader
     from agenteval.graders.cost import CostGrader
+    from agenteval.graders.custom import CustomGrader
+    from agenteval.graders.exact import ExactGrader
+    from agenteval.graders.json_schema import JsonSchemaGrader
+    from agenteval.graders.latency import LatencyGrader
+    from agenteval.graders.llm_judge import LLMJudgeGrader
+    from agenteval.graders.regex import RegexGrader
+    from agenteval.graders.semantic import SemanticGrader
+    from agenteval.graders.tool_check import ToolCheckGrader
 
     _GRADER_REGISTRY.update({
         "exact": ExactGrader,

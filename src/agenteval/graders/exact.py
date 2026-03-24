@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agenteval.models import EvalCase, AgentResult, GradeResult
+from agenteval.models import AgentResult, EvalCase, GradeResult
 
 
 @dataclass

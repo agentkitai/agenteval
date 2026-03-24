@@ -6,10 +6,10 @@ Supports per-test, per-suite budgets and cost trend reporting.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from agenteval.models import EvalResult, EvalRun
+from agenteval.models import EvalRun
 
 # Default pricing per 1K tokens (USD)
 DEFAULT_PRICE_TABLE: Dict[str, Dict[str, float]] = {

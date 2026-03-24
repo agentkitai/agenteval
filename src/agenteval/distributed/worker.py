@@ -7,9 +7,11 @@ import json
 import signal
 import threading
 import uuid
+import warnings
 from typing import Optional
 
 from agenteval.models import EvalCase
+
 
 def _get_redis():
     try:
@@ -29,6 +31,11 @@ class Worker:
         self.broker_url = broker_url
         self.concurrency = concurrency
         self.worker_id = uuid.uuid4().hex[:12]
+        if broker_url.startswith("redis://") and not broker_url.startswith("rediss://"):
+            warnings.warn(
+                "Insecure Redis connection (redis://). Use rediss:// for TLS in production.",
+                stacklevel=2,
+            )
         redis = _get_redis()
         self._redis = redis.Redis.from_url(broker_url, decode_responses=True)
         self._running = False

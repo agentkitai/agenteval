@@ -5,10 +5,12 @@ Supports generic JSON webhooks, Slack Block Kit, and Discord embeds.
 
 from __future__ import annotations
 
-import json
+import ipaddress
 import re
+import socket
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import httpx
 
@@ -31,6 +33,49 @@ class WebhookResult:
     success: bool
     status_code: Optional[int] = None
     error: Optional[str] = None
+
+
+def _validate_webhook_url(url: str) -> None:
+    """Validate webhook URL to prevent SSRF attacks.
+
+    Blocks private, localhost, and link-local addresses.
+    Only allows http and https schemes.
+
+    Raises:
+        ValueError: If the URL is blocked.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Scheme {parsed.scheme!r} not allowed; use http or https")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("URL has no hostname")
+
+    try:
+        resolved = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as exc:
+        raise ValueError(f"Cannot resolve hostname {hostname!r}: {exc}")
+
+    for family, _type, _proto, _canonname, sockaddr in resolved:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError(
+                f"Hostname {hostname!r} resolves to blocked address {ip}"
+            )
+
+
+_SENSITIVE_HEADER_RE = re.compile(
+    r"(Authorization|X-API-Key|X-Secret|Cookie|Token)\s*[:=]\s*\S+",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_error(error_str: str) -> str:
+    """Redact sensitive header values from error messages."""
+    return _SENSITIVE_HEADER_RE.sub(
+        lambda m: f"{m.group(1)}: [REDACTED]", error_str
+    )
 
 
 def detect_webhook_format(url: str) -> str:
@@ -163,6 +208,12 @@ def send_webhook(
     Returns:
         WebhookResult with success status.
     """
+    # SSRF prevention: validate webhook URL
+    try:
+        _validate_webhook_url(config.url)
+    except ValueError as exc:
+        return WebhookResult(success=False, error=f"URL blocked: {exc}")
+
     # Check failure-only filter
     if config.on_failure_only and run.summary.get("failed", 0) == 0:
         return WebhookResult(success=True, status_code=None, error="Skipped (no failures)")
@@ -195,4 +246,4 @@ def send_webhook(
     except httpx.TimeoutException:
         return WebhookResult(success=False, error="Timeout")
     except Exception as e:
-        return WebhookResult(success=False, error=str(e))
+        return WebhookResult(success=False, error=_sanitize_error(str(e)))

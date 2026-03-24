@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import uuid
 import warnings
-from dataclasses import asdict
 from typing import Optional
 
-from agenteval.models import EvalCase, EvalResult, EvalRun, EvalSuite
+from agenteval.models import EvalResult, EvalRun, EvalSuite
+
 
 def _get_redis():
     try:
@@ -28,13 +28,17 @@ class Coordinator:
         self.broker_url = broker_url
         self.timeout = timeout
         self.worker_timeout = worker_timeout
+        if broker_url.startswith("redis://") and not broker_url.startswith("rediss://"):
+            warnings.warn(
+                "Insecure Redis connection (redis://). Use rediss:// for TLS in production.",
+                stacklevel=2,
+            )
         redis = _get_redis()
         self._redis = redis.Redis.from_url(broker_url, decode_responses=True)
 
     def _has_workers(self) -> bool:
         """Check if any workers have active heartbeats."""
-        keys = self._redis.keys("agenteval:worker:*")
-        return len(keys) > 0
+        return next(self._redis.scan_iter("agenteval:worker:*", count=100), None) is not None
 
     def distribute(
         self,
@@ -55,7 +59,9 @@ class Coordinator:
         task_key = f"agenteval:tasks:{rid}"
         result_key = f"agenteval:results:{rid}"
 
-        # Push each case as a task (set TTL for cleanup)
+        # Push each case as a task and set TTL in a single pipeline
+        ttl = max(self.timeout * 2, 600)
+        pipe = self._redis.pipeline()
         for case in suite.cases:
             task = {
                 "run_id": rid,
@@ -69,11 +75,9 @@ class Coordinator:
                     "tags": case.tags,
                 },
             }
-            self._redis.lpush(task_key, json.dumps(task))
-
-        # Set TTL on task and result keys for cleanup (2x timeout)
-        ttl = max(self.timeout * 2, 600)
-        self._redis.expire(task_key, ttl)
+            pipe.lpush(task_key, json.dumps(task))
+        pipe.expire(task_key, ttl)
+        pipe.execute()
 
         # Collect results
         results: list[EvalResult] = []

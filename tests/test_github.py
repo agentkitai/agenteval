@@ -223,7 +223,7 @@ class TestCLIGitHubComment:
         run = _make_run()
         ci_result = _make_ci_result()
 
-        with mock.patch("agenteval.cli.ResultStore") as MockStore:
+        with mock.patch("agenteval.commands.ci.ResultStore") as MockStore:
             instance = MockStore.return_value
             instance.get_run.return_value = run
             instance.close = mock.MagicMock()
@@ -244,7 +244,7 @@ class TestCLIGitHubComment:
         with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as f:
             path = f.name
         try:
-            with mock.patch("agenteval.cli.ResultStore") as MockStore:
+            with mock.patch("agenteval.commands.ci.ResultStore") as MockStore:
                 instance = MockStore.return_value
                 instance.get_run.return_value = run
                 instance.close = mock.MagicMock()

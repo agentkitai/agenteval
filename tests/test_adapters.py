@@ -51,10 +51,10 @@ class TestAdapterRegistry:
     def test_import_agent(self):
         from agenteval.adapters import _import_agent
 
-        # Import something from stdlib
-        obj = _import_agent("os.path:join")
-        import os.path
-        assert obj is os.path.join
+        # Import something from stdlib (json is not in the security blocklist)
+        obj = _import_agent("json:dumps")
+        import json
+        assert obj is json.dumps
 
     def test_import_agent_bad_format(self):
         from agenteval.adapters import _import_agent

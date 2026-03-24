@@ -198,44 +198,44 @@ class TestCiCommand:
 
     def test_ci_pass_exit_0(self, runner, suite_file):
         from agenteval.cli import cli
-        with patch("agenteval.cli.run_suite", new=self._make_mock_run_suite()) as m, \
+        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()) as m, \
              patch("agenteval.cli._resolve_callable", return_value=lambda x: None), \
-             patch("agenteval.cli.ResultStore"):
+             patch("agenteval.commands.ci.ResultStore"):
             result = runner.invoke(cli, ["ci", suite_file, "--agent", "mod:fn", "--min-pass-rate", "0.5"])
             assert result.exit_code == 0
 
     def test_ci_fail_exit_1(self, runner, suite_file):
         from agenteval.cli import cli
-        with patch("agenteval.cli.run_suite", new=self._make_mock_run_suite()) as m, \
+        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()) as m, \
              patch("agenteval.cli._resolve_callable", return_value=lambda x: None), \
-             patch("agenteval.cli.ResultStore"):
+             patch("agenteval.commands.ci.ResultStore"):
             result = runner.invoke(cli, ["ci", suite_file, "--agent", "mod:fn", "--min-pass-rate", "1.0"])
             # pass_rate=1.0 and our mock has 1/1 pass, so should pass
             assert result.exit_code == 0
 
     def test_ci_json_format(self, runner, suite_file):
         from agenteval.cli import cli
-        with patch("agenteval.cli.run_suite", new=self._make_mock_run_suite()), \
+        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()), \
              patch("agenteval.cli._resolve_callable", return_value=lambda x: None), \
-             patch("agenteval.cli.ResultStore"):
+             patch("agenteval.commands.ci.ResultStore"):
             result = runner.invoke(cli, ["ci", suite_file, "--agent", "mod:fn", "--format", "json"])
             data = json.loads(result.output)
             assert "passed" in data
 
     def test_ci_junit_format(self, runner, suite_file):
         from agenteval.cli import cli
-        with patch("agenteval.cli.run_suite", new=self._make_mock_run_suite()), \
+        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()), \
              patch("agenteval.cli._resolve_callable", return_value=lambda x: None), \
-             patch("agenteval.cli.ResultStore"):
+             patch("agenteval.commands.ci.ResultStore"):
             result = runner.invoke(cli, ["ci", suite_file, "--agent", "mod:fn", "--format", "junit"])
             assert "<testsuites" in result.output
 
     def test_ci_output_file(self, runner, suite_file, tmp_path):
         from agenteval.cli import cli
         out = str(tmp_path / "out.json")
-        with patch("agenteval.cli.run_suite", new=self._make_mock_run_suite()), \
+        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()), \
              patch("agenteval.cli._resolve_callable", return_value=lambda x: None), \
-             patch("agenteval.cli.ResultStore"):
+             patch("agenteval.commands.ci.ResultStore"):
             result = runner.invoke(cli, ["ci", suite_file, "--agent", "mod:fn", "--format", "json", "-o", out])
             assert result.exit_code == 0
             with open(out) as f:

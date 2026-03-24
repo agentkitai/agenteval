@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 
-from agenteval.models import EvalCase, AgentResult, GradeResult
+from agenteval.models import AgentResult, EvalCase, GradeResult
 
 _FLAG_MAP = {
     "IGNORECASE": re.IGNORECASE,

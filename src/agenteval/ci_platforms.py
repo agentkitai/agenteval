@@ -6,15 +6,13 @@ Auto-detects CI environment and provides platform-specific integrations.
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import httpx
 
-from agenteval.badge import generate_badge
 from agenteval.models import EvalRun
 
 

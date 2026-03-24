@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from agenteval.models import EvalResult, EvalRun
+from agenteval.models import EvalRun
 
 _BASELINE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS baselines (
@@ -188,7 +188,7 @@ class BaselineStore:
             self._conn.close()
             self._conn = None
 
-    def __enter__(self) -> "BaselineStore":
+    def __enter__(self) -> BaselineStore:
         return self
 
     def __exit__(self, *exc: object) -> None:

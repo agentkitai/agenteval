@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from agenteval.models import EvalCase, AgentResult, GradeResult
+from agenteval.models import AgentResult, EvalCase, GradeResult
 
 _PROMPT_TEMPLATE = """You are an evaluation judge. Assess the agent's output.
 

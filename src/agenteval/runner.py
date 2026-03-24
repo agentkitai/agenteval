@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
+from collections.abc import Awaitable
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Optional, Union
+from typing import Callable, Optional, Union
 
 from agenteval.graders import get_grader
 from agenteval.models import AgentResult, EvalCase, EvalResult, EvalRun, EvalSuite
@@ -34,44 +36,86 @@ async def _call_agent(fn: AgentCallable, input_text: str, timeout: float) -> Age
         result.latency_ms = elapsed_ms
     return result
 async def _run_case(
-    case: EvalCase, agent_fn: AgentCallable, timeout: float
+    case: EvalCase, agent_fn: AgentCallable, timeout: float,
+    grader_cache: dict | None = None,
+    retries: int = 0, retry_backoff_ms: int = 1000,
 ) -> EvalResult:
     """Run a single eval case: call agent, grade, return result."""
-    try:
-        agent_result = await _call_agent(agent_fn, case.input, timeout)
-    except asyncio.TimeoutError:
-        return EvalResult(
-            case_name=case.name, passed=False, score=0.0,
-            details={"error": "Agent call timed out"},
-            agent_output="", tools_called=[], tokens_in=0,
-            tokens_out=0, cost_usd=None, latency_ms=int(timeout * 1000),
-        )
-    except Exception as exc:
-        return EvalResult(
-            case_name=case.name, passed=False, score=0.0,
-            details={"error": f"Agent error: {exc}"},
-            agent_output="", tools_called=[], tokens_in=0,
-            tokens_out=0, cost_usd=None, latency_ms=0,
-        )
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            agent_result = await _call_agent(agent_fn, case.input, timeout)
+        except (asyncio.TimeoutError, ConnectionError) as exc:
+            last_exc = exc
+            if attempt < retries:
+                await asyncio.sleep(retry_backoff_ms * 2 ** attempt / 1000)
+                continue
+            # Final attempt failed
+            if isinstance(exc, asyncio.TimeoutError):
+                return EvalResult(
+                    case_name=case.name, passed=False, score=0.0,
+                    details={"error": "Agent call timed out", "attempts": attempt + 1},
+                    agent_output="", tools_called=[], tokens_in=0,
+                    tokens_out=0, cost_usd=None, latency_ms=int(timeout * 1000),
+                )
+            return EvalResult(
+                case_name=case.name, passed=False, score=0.0,
+                details={"error": f"Agent error: {exc}", "attempts": attempt + 1},
+                agent_output="", tools_called=[], tokens_in=0,
+                tokens_out=0, cost_usd=None, latency_ms=0,
+            )
+        except Exception as exc:
+            return EvalResult(
+                case_name=case.name, passed=False, score=0.0,
+                details={"error": f"Agent error: {exc}", "attempts": attempt + 1},
+                agent_output="", tools_called=[], tokens_in=0,
+                tokens_out=0, cost_usd=None, latency_ms=0,
+            )
 
-    grader = get_grader(case.grader, case.grader_config)
-    try:
-        grade = await grader.grade(case, agent_result)
-    except Exception as exc:
+        cache_key = (case.grader, json.dumps(case.grader_config, sort_keys=True))
+        if grader_cache is not None and cache_key in grader_cache:
+            grader = grader_cache[cache_key]
+        else:
+            grader = get_grader(case.grader, case.grader_config)
+            if grader_cache is not None:
+                grader_cache[cache_key] = grader
+        try:
+            grade = await grader.grade(case, agent_result)
+        except (asyncio.TimeoutError, ConnectionError) as exc:
+            last_exc = exc
+            if attempt < retries:
+                await asyncio.sleep(retry_backoff_ms * 2 ** attempt / 1000)
+                continue
+            return EvalResult(
+                case_name=case.name, passed=False, score=0.0,
+                details={"error": f"Grader error: {exc}", "attempts": attempt + 1},
+                agent_output=agent_result.output, tools_called=agent_result.tools_called,
+                tokens_in=agent_result.tokens_in, tokens_out=agent_result.tokens_out,
+                cost_usd=agent_result.cost_usd, latency_ms=agent_result.latency_ms,
+            )
+        except Exception as exc:
+            return EvalResult(
+                case_name=case.name, passed=False, score=0.0,
+                details={"error": f"Grader error: {exc}", "attempts": attempt + 1},
+                agent_output=agent_result.output, tools_called=agent_result.tools_called,
+                tokens_in=agent_result.tokens_in, tokens_out=agent_result.tokens_out,
+                cost_usd=agent_result.cost_usd, latency_ms=agent_result.latency_ms,
+            )
+
         return EvalResult(
-            case_name=case.name, passed=False, score=0.0,
-            details={"error": f"Grader error: {exc}"},
+            case_name=case.name, passed=grade.passed, score=grade.score,
+            details={"reason": grade.reason, "attempts": attempt + 1},
             agent_output=agent_result.output, tools_called=agent_result.tools_called,
             tokens_in=agent_result.tokens_in, tokens_out=agent_result.tokens_out,
             cost_usd=agent_result.cost_usd, latency_ms=agent_result.latency_ms,
         )
 
+    # Should not reach here, but just in case
     return EvalResult(
-        case_name=case.name, passed=grade.passed, score=grade.score,
-        details={"reason": grade.reason},
-        agent_output=agent_result.output, tools_called=agent_result.tools_called,
-        tokens_in=agent_result.tokens_in, tokens_out=agent_result.tokens_out,
-        cost_usd=agent_result.cost_usd, latency_ms=agent_result.latency_ms,
+        case_name=case.name, passed=False, score=0.0,
+        details={"error": f"All {retries + 1} attempts failed: {last_exc}", "attempts": retries + 1},
+        agent_output="", tools_called=[], tokens_in=0,
+        tokens_out=0, cost_usd=None, latency_ms=0,
     )
 async def run_suite(
     suite: EvalSuite,
@@ -83,6 +127,9 @@ async def run_suite(
     parallel: int = 1,
     on_result: Optional[Callable[[EvalResult], None]] = None,
     adapter: Optional[object] = None,
+    run_config: dict | None = None,
+    retries: int = 0,
+    retry_backoff_ms: int = 1000,
 ) -> EvalRun:
     """Run all cases in a suite and return an EvalRun.
 
@@ -103,11 +150,13 @@ async def run_suite(
             except Exception:
                 pass  # Don't let callback errors crash the run
 
+    grader_cache: dict = {}
+
     if parallel == 1:
         # Sequential: preserves original behavior exactly
         results = []
         for case in suite.cases:
-            result = await _run_case(case, agent_fn, timeout)
+            result = await _run_case(case, agent_fn, timeout, grader_cache, retries, retry_backoff_ms)
             _fire_callback(result)
             results.append(result)
     else:
@@ -117,7 +166,7 @@ async def run_suite(
 
         async def _run_with_sem(index: int, case: EvalCase) -> None:
             async with sem:
-                result = await _run_case(case, agent_fn, timeout)
+                result = await _run_case(case, agent_fn, timeout, grader_cache, retries, retry_backoff_ms)
                 results_by_index[index] = result
                 _fire_callback(result)
 
@@ -137,7 +186,7 @@ async def run_suite(
         id=run_id or uuid.uuid4().hex[:12],
         suite=suite.name,
         agent_ref=suite.agent,
-        config={},
+        config=run_config or {},
         results=results,
         summary={
             "total": total,

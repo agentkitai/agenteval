@@ -61,17 +61,20 @@ class ResultStore:
             (run.id, run.suite, run.agent_ref, json.dumps(run.config),
              json.dumps(run.summary), run.created_at),
         )
-        for r in run.results:
-            conn.execute(
-                "INSERT INTO eval_results "
-                "(run_id, case_name, passed, score, details, agent_output, "
-                "tools_called, tokens_in, tokens_out, cost_usd, latency_ms) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (run.id, r.case_name, int(r.passed), r.score,
-                 json.dumps(r.details), r.agent_output,
-                 json.dumps(r.tools_called), r.tokens_in, r.tokens_out,
-                 r.cost_usd, r.latency_ms),
-            )
+        result_rows = [
+            (run.id, r.case_name, int(r.passed), r.score,
+             json.dumps(r.details), r.agent_output,
+             json.dumps(r.tools_called), r.tokens_in, r.tokens_out,
+             r.cost_usd, r.latency_ms)
+            for r in run.results
+        ]
+        conn.executemany(
+            "INSERT INTO eval_results "
+            "(run_id, case_name, passed, score, details, agent_output, "
+            "tools_called, tokens_in, tokens_out, cost_usd, latency_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            result_rows,
+        )
         conn.commit()
 
     def get_run(self, run_id: str) -> Optional[EvalRun]:
@@ -87,18 +90,19 @@ class ResultStore:
             summary=json.loads(row["summary"]), created_at=row["created_at"],
         )
 
-    def list_runs(self, suite: Optional[str] = None) -> List[EvalRun]:
+    def list_runs(self, suite: Optional[str] = None, limit: int | None = None, offset: int = 0) -> List[EvalRun]:
         """List runs, optionally filtered by suite."""
         conn = self._get_conn()
+        query = "SELECT * FROM eval_runs"
+        params: list = []
         if suite:
-            rows = conn.execute(
-                "SELECT * FROM eval_runs WHERE suite = ? ORDER BY created_at DESC",
-                (suite,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM eval_runs ORDER BY created_at DESC"
-            ).fetchall()
+            query += " WHERE suite = ?"
+            params.append(suite)
+        query += " ORDER BY created_at DESC"
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        rows = conn.execute(query, params).fetchall()
         runs = []
         for row in rows:
             results = self._load_results(row["id"])
@@ -109,18 +113,19 @@ class ResultStore:
             ))
         return runs
 
-    def list_runs_summary(self, suite: Optional[str] = None) -> List[EvalRun]:
+    def list_runs_summary(self, suite: Optional[str] = None, limit: int | None = None, offset: int = 0) -> List[EvalRun]:
         """List runs with summary only (no individual results loaded)."""
         conn = self._get_conn()
+        query = "SELECT * FROM eval_runs"
+        params: list = []
         if suite:
-            rows = conn.execute(
-                "SELECT * FROM eval_runs WHERE suite = ? ORDER BY created_at DESC",
-                (suite,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM eval_runs ORDER BY created_at DESC"
-            ).fetchall()
+            query += " WHERE suite = ?"
+            params.append(suite)
+        query += " ORDER BY created_at DESC"
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        rows = conn.execute(query, params).fetchall()
         return [
             EvalRun(
                 id=row["id"], suite=row["suite"], agent_ref=row["agent_ref"],
@@ -147,7 +152,7 @@ class ResultStore:
             for r in rows
         ]
 
-    def __enter__(self) -> "ResultStore":
+    def __enter__(self) -> ResultStore:
         return self
 
     def __exit__(self, *exc: object) -> None:

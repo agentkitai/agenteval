@@ -7,9 +7,10 @@ Uses scipy.stats if available, otherwise pure Python fallback.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from agenteval.models import EvalRun
 
