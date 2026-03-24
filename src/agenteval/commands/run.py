@@ -9,6 +9,7 @@ from typing import Optional
 import click
 
 from agenteval.loader import LoadError, load_suite
+from agenteval.profiles import apply_profile, load_profile
 from agenteval.runner import run_suite
 from agenteval.store import ResultStore
 
@@ -29,13 +30,19 @@ def register(cli: click.Group, helpers: dict) -> None:
     @click.option("--adapter", "adapter_name", default=None, help="Adapter name (e.g. 'langchain').")
     @click.option("--retries", default=0, show_default=True, type=int, help="Retry count for transient failures.")
     @click.option("--retry-backoff-ms", default=1000, show_default=True, type=int, help="Base backoff in ms for retries.")
+    @click.option("--profile", "profile_path", default=None, type=click.Path(exists=True),
+                  help="Path to a YAML run profile for deterministic configuration.")
     @click.option("--workers", default=None, help="Redis URL for distributed execution.")
     @click.option("--worker-timeout", "worker_timeout", default=30, show_default=True, type=int,
                   help="Seconds to wait for workers before falling back to local.")
+    @click.option("--report", "report_path", default=None, type=click.Path(),
+                  help="Write JSON report to this path after run completes.")
     def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, exclude_tag: tuple,
             timeout: float, parallel: int, progress: Optional[bool], adapter_name: Optional[str] = None,
             retries: int = 0, retry_backoff_ms: int = 1000,
-            workers: Optional[str] = None, worker_timeout: int = 30) -> None:
+            profile_path: Optional[str] = None,
+            workers: Optional[str] = None, worker_timeout: int = 30,
+            report_path: Optional[str] = None) -> None:
         """Run an evaluation suite against an agent.
 
         Examples:
@@ -83,6 +90,24 @@ def register(cli: click.Group, helpers: dict) -> None:
             eval_suite = load_suite(suite)
         except LoadError as e:
             _fail(f"Loading suite: {e}")
+
+        # Apply profile if provided
+        _profile = None
+        if profile_path:
+            _profile = load_profile(profile_path)
+            eval_suite = apply_profile(eval_suite, _profile)
+            # Profile provides defaults; CLI flags take precedence.
+            # Click uses its defaults when the user doesn't supply the flag,
+            # so we only override with profile values when the CLI value is
+            # still the declared default.
+            if timeout == 30.0 and _profile.timeout != 30:
+                timeout = float(_profile.timeout)
+            if parallel == 1 and _profile.parallel != 1:
+                parallel = _profile.parallel
+            if retries == 0 and _profile.retries != 0:
+                retries = _profile.retries
+            if retry_backoff_ms == 1000 and _profile.retry_backoff_ms != 1000:
+                retry_backoff_ms = _profile.retry_backoff_ms
 
         # Filter by tags if specified
         if tag:
@@ -162,6 +187,10 @@ def register(cli: click.Group, helpers: dict) -> None:
             "tags": list(tag) if tag else [],
             "verbose": verbose,
         }
+        if _profile is not None:
+            _run_config["profile"] = profile_path
+            if _profile.seed is not None:
+                _run_config["seed"] = _profile.seed
 
         # Run
         store = ResultStore(db)
@@ -181,6 +210,14 @@ def register(cli: click.Group, helpers: dict) -> None:
 
         # Print results
         _print_run_results(eval_run, verbose)
+
+        # Generate report if requested
+        if report_path:
+            from agenteval.reports import generate_report
+            content = generate_report(eval_run, format="json")
+            with open(report_path, "w") as f:
+                f.write(content)
+            click.echo(f"Report written to {report_path}")
 
         # Exit code
         if eval_run.summary["failed"] > 0:

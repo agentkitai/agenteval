@@ -1,0 +1,32 @@
+# Basic agenteval CI workflow.
+# Runs a test suite and fails if any case fails.
+
+name: AgentEval Basic
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install agenteval
+        run: pip install agentevalkit
+
+      - name: Run evaluation suite
+        run: agenteval run --suite suite.yaml --agent my_agent:run
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: agenteval.db

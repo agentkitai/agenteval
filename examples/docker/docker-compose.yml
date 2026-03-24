@@ -1,0 +1,27 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  agenteval:
+    build: .
+    depends_on:
+      - redis
+    environment:
+      - AGENTEVAL_REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - .:/work
+    command: ["agenteval", "run", "--suite", "suite.yaml"]
+
+  worker:
+    build: .
+    depends_on:
+      - redis
+    environment:
+      - AGENTEVAL_REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - .:/work
+    command: ["agenteval", "worker", "--redis-url", "redis://redis:6379/0"]

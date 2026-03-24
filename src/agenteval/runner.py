@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import time
 import uuid
 from collections.abc import Awaitable
@@ -137,6 +138,10 @@ async def run_suite(
         parallel: Max concurrent cases. 1 = sequential (default).
         on_result: Callback fired as each case completes.
     """
+    # Set global random seed for deterministic runs when specified in config.
+    if run_config and run_config.get("seed") is not None:
+        random.seed(run_config["seed"])
+
     if adapter is not None:
         agent_fn = adapter.invoke  # type: ignore[assignment]
 

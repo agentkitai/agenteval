@@ -22,3 +22,6 @@ jobs:
         run: pip install pip-audit && pip-audit --desc
         continue-on-error: true
       - run: pytest
+      - name: Type check
+        run: pip install mypy types-PyYAML && mypy src/agenteval/ --ignore-missing-imports
+        continue-on-error: true

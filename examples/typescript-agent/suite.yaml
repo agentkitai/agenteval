@@ -1,0 +1,27 @@
+name: typescript-agent-tests
+agent: wrapper:run
+
+cases:
+  - name: echo-basic
+    input: "echo hello world"
+    expected:
+      output: "hello world"
+    grader: exact
+
+  - name: upper-transform
+    input: "upper hello"
+    expected:
+      output: "HELLO"
+    grader: exact
+
+  - name: reverse-string
+    input: "reverse abcd"
+    expected:
+      output: "dcba"
+    grader: exact
+
+  - name: passthrough
+    input: "just some text"
+    expected:
+      contains: "just some text"
+    grader: contains

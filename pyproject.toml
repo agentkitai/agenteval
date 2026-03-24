@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentevalkit"
-version = "0.5.0"
+version = "0.6.0"
 description = "Testing and evaluation framework for AI agents"
 readme = "README.md"
 license = {text = "MIT"}
@@ -39,6 +39,7 @@ autogen = ["pyautogen>=0.2"]
 distributed = [
     "redis>=4.0",
 ]
+dashboard = []  # Currently uses stdlib only
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
@@ -53,6 +54,9 @@ Repository = "https://github.com/agentkitai/agenteval"
 
 [project.scripts]
 agenteval = "agenteval.cli:cli"
+
+[tool.setuptools.package-data]
+agenteval = ["dashboard/static/**"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -71,3 +75,12 @@ ignore = ["E501", "B007", "B904", "SIM108", "SIM105", "SIM103", "UP006", "UP035"
 python_version = "3.9"
 warn_return_any = true
 check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "agenteval.distributed.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "agenteval.dashboard.*"
+ignore_errors = true

@@ -1,0 +1,48 @@
+# AgentEval CI workflow with baseline comparison and PR comment.
+
+name: AgentEval Compare
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install agenteval
+        run: pip install agentevalkit
+
+      - name: Run evaluation suite
+        run: agenteval run --suite suite.yaml --agent my_agent:run --format json -o results.json
+
+      - name: Compare with baseline
+        run: agenteval compare --baseline baseline.json --current results.json --format markdown -o comparison.md
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.number }} \
+            --body-file comparison.md \
+            --edit-last || \
+          gh pr comment ${{ github.event.number }} \
+            --body-file comparison.md
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-artifacts
+          path: |
+            results.json
+            comparison.md

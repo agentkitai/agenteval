@@ -59,10 +59,14 @@ class Coordinator:
         task_key = f"agenteval:tasks:{rid}"
         result_key = f"agenteval:results:{rid}"
 
+        # Initialise task status tracking
+        status_key = f"agenteval:task-status:{rid}"
+
         # Push each case as a task and set TTL in a single pipeline
         ttl = max(self.timeout * 2, 600)
         pipe = self._redis.pipeline()
         for case in suite.cases:
+            pipe.hset(status_key, case.name, "pending")
             task = {
                 "run_id": rid,
                 "agent_ref": agent_ref,
@@ -77,6 +81,7 @@ class Coordinator:
             }
             pipe.lpush(task_key, json.dumps(task))
         pipe.expire(task_key, ttl)
+        pipe.expire(status_key, ttl)
         pipe.execute()
 
         # Collect results
@@ -102,8 +107,53 @@ class Coordinator:
             warnings.warn(
                 f"Timeout: received {len(results)}/{expected} results"
             )
+            # Move unfinished tasks to the dead-letter queue
+            dl_key = f"agenteval:dead-letter:{rid}"
+            remaining_tasks = self._redis.lrange(task_key, 0, -1)
+            if remaining_tasks:
+                pipe = self._redis.pipeline()
+                for t in remaining_tasks:
+                    pipe.lpush(dl_key, t)
+                pipe.delete(task_key)
+                pipe.expire(dl_key, ttl)
+                pipe.execute()
+
+            # Mark incomplete cases as failed in task status
+            status_key = f"agenteval:task-status:{rid}"
+            completed_names = {r.case_name for r in results}
+            pipe = self._redis.pipeline()
+            for case in suite.cases:
+                if case.name not in completed_names:
+                    pipe.hset(status_key, case.name, "failed")
+            pipe.execute()
 
         return self._build_run(rid, suite, agent_ref, results)
+
+    def get_dead_letter_count(self, run_id: str) -> int:
+        """Return the number of tasks in the dead-letter queue for a run."""
+        return self._redis.llen(f"agenteval:dead-letter:{run_id}")
+
+    def resume_run(self, run_id: str) -> int:
+        """Re-enqueue dead-lettered tasks back to the task queue.
+
+        Returns the number of tasks re-enqueued.
+        """
+        dl_key = f"agenteval:dead-letter:{run_id}"
+        task_key = f"agenteval:tasks:{run_id}"
+        status_key = f"agenteval:task-status:{run_id}"
+        tasks = self._redis.lrange(dl_key, 0, -1)
+        if not tasks:
+            return 0
+        pipe = self._redis.pipeline()
+        for t in tasks:
+            pipe.lpush(task_key, t)
+            data = json.loads(t)
+            case_name = data.get("case", {}).get("name", "")
+            if case_name:
+                pipe.hset(status_key, case_name, "pending")
+        pipe.delete(dl_key)
+        pipe.execute()
+        return len(tasks)
 
     def _fallback_local(
         self, suite: EvalSuite, agent_ref: str, *, run_id: Optional[str] = None

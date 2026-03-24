@@ -1,0 +1,62 @@
+# AgentEval CI workflow with quality gates.
+# Fails the build if metrics regress beyond thresholds.
+
+name: AgentEval Gates
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install agenteval
+        run: pip install agentevalkit
+
+      - name: Run evaluation suite
+        run: agenteval run --suite suite.yaml --agent my_agent:run --format json -o results.json
+
+      - name: Compare with gates
+        run: |
+          agenteval compare \
+            --baseline baseline.json \
+            --current results.json \
+            --gate pass_rate:0.95 \
+            --gate avg_score:0.8 \
+            --gate max_latency_ms:5000 \
+            --format json -o gate-results.json
+
+      - name: Check gate status
+        run: |
+          python3 -c "
+          import json, sys
+          data = json.load(open('gate-results.json'))
+          if not data.get('gates_passed', False):
+              for g in data.get('failures', []):
+                  print(f\"GATE FAILED: {g['gate']} — got {g['actual']}, required {g['threshold']}\")
+              sys.exit(1)
+          print('All quality gates passed.')
+          "
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STATUS=$(python3 -c "import json; d=json.load(open('gate-results.json')); print('passed' if d.get('gates_passed') else 'FAILED')")
+          gh pr comment ${{ github.event.number }} \
+            --body "## AgentEval Gate Results: ${STATUS}
+          $(cat gate-results.json | python3 -m json.tool)" \
+            --edit-last || \
+          gh pr comment ${{ github.event.number }} \
+            --body "## AgentEval Gate Results: ${STATUS}
+          $(cat gate-results.json | python3 -m json.tool)"

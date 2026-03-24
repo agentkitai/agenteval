@@ -1,0 +1,13 @@
+{
+  "name": "agenteval-typescript-agent-example",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Example TypeScript agent for agenteval testing",
+  "scripts": {
+    "agent": "tsx agent.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4",
+    "tsx": "^4.7"
+  }
+}

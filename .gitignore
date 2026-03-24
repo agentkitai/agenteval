@@ -5,3 +5,13 @@ __pycache__/
 dist/
 build/
 *.pyc
+
+# Aperant data directory
+.auto-claude/
+
+# Claude Code / BMAD
+.claude/
+_bmad/
+
+# SQLite databases
+*.db

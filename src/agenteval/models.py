@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -11,9 +11,9 @@ class EvalCase:
     """A single evaluation case."""
     name: str
     input: str
-    expected: Dict
+    expected: Dict[str, Any]
     grader: str
-    grader_config: Dict = field(default_factory=dict)
+    grader_config: Dict[str, Any] = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)
 
 
@@ -23,19 +23,19 @@ class EvalSuite:
     name: str
     agent: str
     cases: List[EvalCase]
-    defaults: Dict = field(default_factory=dict)
+    defaults: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class AgentResult:
     """Result returned by an agent callable."""
     output: str
-    tools_called: List[Dict] = field(default_factory=list)
+    tools_called: List[Dict[str, Any]] = field(default_factory=list)
     tokens_in: int = 0
     tokens_out: int = 0
     cost_usd: Optional[float] = None
     latency_ms: int = 0
-    metadata: Dict = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -52,9 +52,9 @@ class EvalResult:
     case_name: str
     passed: bool
     score: float
-    details: Dict
+    details: Dict[str, Any]
     agent_output: str
-    tools_called: List[Dict]
+    tools_called: List[Dict[str, Any]]
     tokens_in: int
     tokens_out: int
     cost_usd: Optional[float]
@@ -67,7 +67,7 @@ class EvalRun:
     id: str
     suite: str
     agent_ref: str
-    config: Dict
+    config: Dict[str, Any]
     results: List[EvalResult]
-    summary: Dict
+    summary: Dict[str, Any]
     created_at: str

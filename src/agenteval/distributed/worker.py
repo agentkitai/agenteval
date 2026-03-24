@@ -53,8 +53,8 @@ class Worker:
                 self._send_heartbeat()
             except Exception:
                 pass
-            # Sleep in small increments so we can exit quickly
-            for _ in range(30):
+            # Sleep in small increments so we can exit quickly (10s interval)
+            for _ in range(10):
                 if not self._running:
                     break
                 import time
@@ -95,6 +95,16 @@ class Worker:
             except Exception as exc:
                 import sys
                 print(f"Worker error: {exc}", file=sys.stderr)
+                # Mark task as failed in status hash
+                try:
+                    task = json.loads(raw)
+                    run_id = task.get("run_id", "")
+                    case_name = task.get("case", {}).get("name", "")
+                    if run_id and case_name:
+                        status_key = f"agenteval:task-status:{run_id}"
+                        self._redis.hset(status_key, case_name, "failed")
+                except Exception:
+                    pass
 
     def _process_task(self, task: dict) -> None:
         """Execute a single task and push result to Redis."""
@@ -136,7 +146,11 @@ class Worker:
         }
 
         result_key = f"agenteval:results:{run_id}"
-        self._redis.lpush(result_key, json.dumps(result_data))
+        status_key = f"agenteval:task-status:{run_id}"
+        pipe = self._redis.pipeline()
+        pipe.lpush(result_key, json.dumps(result_data))
+        pipe.hset(status_key, case.name, "completed")
+        pipe.execute()
 
     def stop(self) -> None:
         """Signal the worker to stop gracefully."""

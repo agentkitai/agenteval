@@ -16,7 +16,8 @@ def register(cli: click.Group, helpers: dict) -> None:
     @click.option("--alpha", default=0.05, show_default=True, help="Significance level for t-test.")
     @click.option("--threshold", default=0.0, show_default=True, help="Min score drop for regression.")
     @click.option("--stats/--no-stats", default=True, show_default=True, help="Show statistical details.")
-    def compare(run_ids: tuple, db: str, alpha: float, threshold: float, stats: bool) -> None:
+    @click.option("--gate", default=None, type=click.Path(exists=True), help="Path to gate policy YAML.")
+    def compare(run_ids: tuple, db: str, alpha: float, threshold: float, stats: bool, gate: str | None) -> None:
         """Compare evaluation runs. Give exactly 2 run IDs, or use 'A1,A2 vs B1,B2' for multi-run.
 
         Examples:
@@ -120,5 +121,25 @@ def register(cli: click.Group, helpers: dict) -> None:
 
         if report.regressions:
             click.echo(_style(f"\n\u26a0 {len(report.regressions)} regression(s) detected!", fg="red", bold=True))
+
+        # Gate policy evaluation
+        if gate:
+            from agenteval.gates import evaluate_gate, load_gate_policy
+
+            policy = load_gate_policy(gate)
+            gate_result = evaluate_gate(policy, target_runs[-1], comparison=report)
+
+            if gate_result.violations:
+                click.echo(_style("\nGate policy violations:", fg="red", bold=True))
+                for v in gate_result.violations:
+                    click.echo(f"  {v.metric}: expected {v.expected}, got {v.actual}")
+
+            if gate_result.passed:
+                click.echo(_style("\nGate: PASSED", fg="green", bold=True))
+            else:
+                click.echo(_style("\nGate: FAILED", fg="red", bold=True))
+                click.echo()
+                import sys
+                sys.exit(1)
 
         click.echo()

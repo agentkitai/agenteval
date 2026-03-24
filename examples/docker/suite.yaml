@@ -1,0 +1,15 @@
+name: docker-example-tests
+agent: my_agent:run
+
+cases:
+  - name: basic-response
+    input: "Hello, agent!"
+    expected:
+      contains: "Hello"
+    grader: contains
+
+  - name: factual-check
+    input: "What is 2 + 2?"
+    expected:
+      contains: "4"
+    grader: contains

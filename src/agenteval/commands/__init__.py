@@ -9,11 +9,18 @@ from agenteval.commands import (
     ci,
     compare,
     coverage,
+    dashboard,
+    doctor,
+    examples,
     generate,
     importers,
+    init,
+    lint,
     list_cmd,
     profile,
+    report,
     run,
+    trends,
     worker,
 )
 
@@ -28,6 +35,13 @@ ALL_MODULES = [
     worker,
     generate,
     coverage,
+    doctor,
+    init,
+    lint,
+    report,
+    examples,
+    dashboard,
+    trends,
 ]
 
 
