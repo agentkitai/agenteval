@@ -1,7 +1,7 @@
 # AgentEval 🧪
 
 [![PyPI](https://img.shields.io/pypi/v/agentevalkit)](https://pypi.org/project/agentevalkit/)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
+[![CI](https://img.shields.io/github/actions/workflow/status/agentkitai/agenteval/ci.yml?branch=main)](https://github.com/agentkitai/agenteval/actions)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -51,7 +51,7 @@ cases:
   - name: format-check
     input: "List 3 colors"
     expected:
-      pattern: "\\d\\.\\s+\\w+"
+      pattern: "\d\.\s+\w+"
     grader: regex
 ```
 
@@ -284,7 +284,7 @@ Matches `result.output` against `expected.pattern` (Python regex). Config: `flag
 
 ```yaml
 expected:
-  pattern: "\\d+\\.\\d+"
+  pattern: "\d+\.\d+"
 grader: regex
 grader_config:
   flags: [IGNORECASE]
