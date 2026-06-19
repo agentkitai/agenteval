@@ -18,6 +18,6 @@ jobs:
       - run: pip install build
       - run: python -m build
       - name: Publish to PyPI
+        # Uses PyPI Trusted Publishing (OIDC) via the id-token: write permission above.
+        # Requires a Trusted Publisher to be configured on PyPI for this repo + workflow.
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
