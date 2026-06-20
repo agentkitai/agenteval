@@ -5,7 +5,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Testing and evaluation framework for AI agents.** Define test suites in YAML, grade agent outputs with 6 pluggable graders, track results over time, and detect regressions with statistical comparison.
+**Testing and evaluation framework for AI agents.** Define test suites in YAML, grade agent outputs with 10 pluggable graders, track results over time, and detect regressions with statistical comparison.
 
 ---
 
@@ -15,7 +15,7 @@ AI agents are **hard to test**. They're non-deterministic, they call tools, and 
 
 - 🎯 **YAML-based test suites** — Define inputs, expected outputs, and grading criteria declaratively
 - 📊 **Statistical regression detection** — Welch's t-test across multiple runs, not just pass/fail
-- 🔌 **6 built-in graders** — Exact match, contains, regex, tool-check, LLM-judge, and custom
+- 🔌 **10 built-in graders** — Exact match, contains, regex, tool-check, LLM-judge, custom, JSON-schema, semantic, latency, and cost
 - 🔗 **AgentLens integration** — Import real production sessions as test cases
 - 💰 **Cost & latency tracking** — Know what each eval costs in tokens and dollars
 - 🗄️ **SQLite result storage** — Every run is persisted for historical comparison
@@ -94,9 +94,9 @@ Cost: $0.0023  Avg latency: 220ms
 
 ## Features
 
-### 🎯 6 Built-in Graders
+### 🎯 10 Built-in Graders
 
-| Grader | What it checks | Expected fields |
+| Grader | What it checks | Expected / config fields |
 |--------|---------------|----------------|
 | `exact` | Exact string match | `output` |
 | `contains` | Substring presence | `output_contains: [list]` |
@@ -104,6 +104,10 @@ Cost: $0.0023  Avg latency: 220ms
 | `tool-check` | Tools were called | `tools_called: [list]` |
 | `llm-judge` | LLM evaluates quality | `criteria` (free-form) |
 | `custom` | Your own function | `grader_config: {function: "mod:fn"}` |
+| `json_schema` | Output validates against a JSON Schema | `grader_config: {schema: {...}}` or `{schema_file: path}` |
+| `semantic` | Cosine similarity to expected text | `grader_config: {expected: str, threshold: 0.8}` |
+| `latency` | Response time within budget | `grader_config: {max_ms: N}` |
+| `cost` | Cost within budget | `grader_config: {max_usd: N}` |
 
 ### 📊 Statistical Comparison
 
@@ -140,16 +144,17 @@ Import real agent sessions from [AgentLens](https://github.com/agentkitai/agentl
 # From AgentLens SQLite database
 agenteval import --from agentlens --db sessions.db --output suite.yaml --grader contains
 
-# From AgentLens server API
-agenteval import-agentlens --url http://localhost:3000 --output suite.yaml --grader contains
+# From AgentLens server API (single session or --batch)
+agenteval import-agentlens --server http://localhost:3000 --session SESSION_ID --output suite.yaml
+agenteval import-agentlens --server http://localhost:3000 --batch --limit 100 --output suite.yaml
 
-# With filtering and interactive review
-agenteval import --from agentlens --db sessions.db --output suite.yaml --filter-tag production --auto-assertions --interactive
+# With filtering and interactive review (server mode)
+agenteval import-agentlens --server http://localhost:3000 --batch --filter-tag production --auto-assertions --interactive --output suite.yaml
 ```
 
 **Import modes:**
 - **SQLite mode** (`import --from agentlens --db path`) — reads directly from an AgentLens database file
-- **Server mode** (`import-agentlens --url URL`) — fetches sessions via the AgentLens HTTP API
+- **Server mode** (`import-agentlens --server URL`) — fetches sessions via the AgentLens HTTP API (use `--session ID` for one session or `--batch` for many)
 
 Sessions are converted to eval cases with input/output mapping and optional tool-call assertions. Use `--auto-assertions` to automatically generate expected fields from session data, and `--interactive` to review each case before saving.
 
@@ -423,7 +428,7 @@ Contributions welcome! This project uses:
 - **src layout** (`src/agenteval/`)
 
 ```bash
-git clone https://github.com/amitpaz1/agenteval.git
+git clone https://github.com/agentkitai/agenteval.git
 cd agenteval
 pip install -e ".[dev]"
 pytest

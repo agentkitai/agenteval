@@ -223,8 +223,15 @@ export REDIS_CA_CERT=/path/to/ca.pem
 Check your token permissions:
 
 ```bash
-export GITHUB_TOKEN=ghp_...  # Needs 'pull_requests: write' permission
-agenteval github-comment --run-id RUN_ID --repo owner/repo --pr 123
+export GITHUB_TOKEN=ghp_...        # Needs 'pull-requests: write' permission
+export GITHUB_REPOSITORY=owner/repo
+export GITHUB_EVENT_PATH=/path/to/event.json  # set automatically in Actions
+agenteval github-comment --run RUN_ID
 ```
+
+The repository and PR number are read from `GITHUB_REPOSITORY` and
+`GITHUB_EVENT_PATH` (both provided automatically inside GitHub Actions), not
+from command-line flags. The command accepts only `--run`, `--db`, and
+`--dry-run`.
 
 See [docs/github-actions.md](github-actions.md) for full CI setup.
