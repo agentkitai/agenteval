@@ -9,7 +9,6 @@ import pytest
 
 from agenteval.models import EvalResult, EvalRun
 from agenteval.profiler import (
-    ProfileResult,
     Profiler,
     SuiteProfile,
     TrendResult,
@@ -196,6 +195,7 @@ class TestRecommendations:
 class TestProfileCLI:
     def test_profile_text_format(self, tmp_path):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
         from agenteval.store import ResultStore
 
@@ -218,6 +218,7 @@ class TestProfileCLI:
 
     def test_profile_json_format(self, tmp_path):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
         from agenteval.store import ResultStore
 
@@ -238,6 +239,7 @@ class TestProfileCLI:
 
     def test_profile_csv_format(self, tmp_path):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
         from agenteval.store import ResultStore
 

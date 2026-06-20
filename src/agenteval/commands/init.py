@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import click
 
-
 _EXAMPLE_CASES = {
     "contains": lambda i: {
         "name": f"case-{i}",

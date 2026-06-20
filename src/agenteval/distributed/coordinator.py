@@ -87,7 +87,6 @@ class Coordinator:
         # Collect results
         results: list[EvalResult] = []
         expected = len(suite.cases)
-        remaining_timeout = self.timeout
 
         import time as _time
         deadline = _time.monotonic() + self.timeout

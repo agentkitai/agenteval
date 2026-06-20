@@ -15,7 +15,6 @@ from agenteval.formatters.github_comment import MARKER, format_github_comment
 from agenteval.github import GitHubClient
 from agenteval.models import EvalResult, EvalRun
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -92,17 +91,17 @@ class TestGitHubClient:
         import urllib.error
         client = GitHubClient("tok", "owner/repo", 1)
         err = urllib.error.HTTPError("url", 404, "Not Found", {}, None)
-        with mock.patch("agenteval.github.urllib.request.urlopen", side_effect=err):
-            with pytest.raises(ValueError, match="404"):
-                client.post_comment("hi")
+        with mock.patch("agenteval.github.urllib.request.urlopen", side_effect=err), \
+             pytest.raises(ValueError, match="404"):
+            client.post_comment("hi")
 
     def test_5xx_raises_runtime_error(self):
         import urllib.error
         client = GitHubClient("tok", "owner/repo", 1)
         err = urllib.error.HTTPError("url", 500, "Server Error", {}, None)
-        with mock.patch("agenteval.github.urllib.request.urlopen", side_effect=err):
-            with pytest.raises(RuntimeError, match="500"):
-                client.post_comment("hi")
+        with mock.patch("agenteval.github.urllib.request.urlopen", side_effect=err), \
+             pytest.raises(RuntimeError, match="500"):
+            client.post_comment("hi")
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +181,8 @@ class TestBadge:
             path = f.name
         try:
             generate_badge(0.95, path)
-            svg = open(path).read()
+            with open(path) as svg_file:
+                svg = svg_file.read()
             assert "#4c1" in svg
             assert "95%" in svg
             assert "agenteval" in svg
@@ -194,7 +194,8 @@ class TestBadge:
             path = f.name
         try:
             generate_badge(0.75, path)
-            svg = open(path).read()
+            with open(path) as svg_file:
+                svg = svg_file.read()
             assert "#dfb317" in svg
         finally:
             os.unlink(path)
@@ -204,7 +205,8 @@ class TestBadge:
             path = f.name
         try:
             generate_badge(0.5, path)
-            svg = open(path).read()
+            with open(path) as svg_file:
+                svg = svg_file.read()
             assert "#e05d44" in svg
         finally:
             os.unlink(path)
@@ -217,6 +219,7 @@ class TestBadge:
 class TestCLIGitHubComment:
     def test_dry_run(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -235,6 +238,7 @@ class TestCLIGitHubComment:
 
     def test_badge_command(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -251,7 +255,8 @@ class TestCLIGitHubComment:
                 with mock.patch("agenteval.ci.check_thresholds", return_value=ci_result):
                     result = runner.invoke(cli, ["badge", "--run", "run-1", "--output", path, "--db", "test.db"])
                     assert result.exit_code == 0
-                    svg = open(path).read()
+                    with open(path) as svg_file:
+                        svg = svg_file.read()
                     assert "agenteval" in svg
         finally:
             os.unlink(path)

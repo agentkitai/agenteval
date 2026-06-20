@@ -1,5 +1,7 @@
 """Tests for SQLite result store."""
 
+import sqlite3
+
 import pytest
 
 from agenteval.models import EvalResult, EvalRun
@@ -102,7 +104,7 @@ class TestResultStore:
 
     def test_duplicate_run_id_raises(self, store):
         store.save_run(_make_run("run-1"))
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             store.save_run(_make_run("run-1"))
 
     def test_details_and_tools_roundtrip(self, store):

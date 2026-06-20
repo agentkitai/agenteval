@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
-import pytest
-
 from agenteval.ci_platforms import (
     CIPlatform,
     detect_ci_platform,

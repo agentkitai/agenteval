@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-
 import pytest
 
 from agenteval.compare import (
     ChangeStatus,
+    _clean_scores,
+    _welch_degrees_of_freedom,
+    _welch_t_test_pure,
     compare_runs,
     compute_stats,
     confidence_interval,
     welch_t_test,
-    _clean_scores,
-    _welch_degrees_of_freedom,
-    _welch_t_test_pure,
 )
 from agenteval.models import EvalResult, EvalRun
 

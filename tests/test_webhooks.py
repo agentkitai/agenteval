@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from agenteval.models import EvalResult, EvalRun
 from agenteval.webhooks import (
     WebhookConfig,

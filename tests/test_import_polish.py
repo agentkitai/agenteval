@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import json
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
 from agenteval.models import EvalCase, EvalSuite
-
 
 # ── B4-S1: AgentLensClient ──────────────────────────────────────────────
 
@@ -260,6 +258,7 @@ class TestBatchImport:
 class TestImportCLINew:
     def test_cli_single_session(self, tmp_path):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         out_path = str(tmp_path / "suite.yaml")
@@ -279,6 +278,7 @@ class TestImportCLINew:
 
     def test_cli_batch(self, tmp_path):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         out_path = str(tmp_path / "suite.yaml")

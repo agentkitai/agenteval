@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import fakeredis
 import pytest
@@ -393,6 +393,7 @@ class TestFallback:
 class TestCLI:
     def test_run_command_has_workers_option(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -401,6 +402,7 @@ class TestCLI:
 
     def test_run_command_has_worker_timeout_option(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -409,6 +411,7 @@ class TestCLI:
 
     def test_worker_command_exists(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -418,6 +421,7 @@ class TestCLI:
 
     def test_worker_command_has_concurrency(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -426,6 +430,7 @@ class TestCLI:
 
     def test_worker_command_requires_broker(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -435,6 +440,7 @@ class TestCLI:
     def test_run_with_workers_uses_coordinator(self):
         """When --workers is passed, coordinator should be used."""
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -445,6 +451,7 @@ class TestCLI:
 
     def test_run_help_shows_all_options(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -455,6 +462,7 @@ class TestCLI:
 
     def test_worker_help_shows_all_options(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -465,6 +473,7 @@ class TestCLI:
 
     def test_cli_version(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
@@ -473,6 +482,7 @@ class TestCLI:
 
     def test_worker_command_help_text(self):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()

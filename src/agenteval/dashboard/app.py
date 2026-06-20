@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from functools import cached_property
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from urllib.parse import parse_qs, urlparse
 
 from agenteval.models import EvalResult, EvalRun

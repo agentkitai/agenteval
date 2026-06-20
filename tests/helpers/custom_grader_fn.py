@@ -1,6 +1,6 @@
 """Test helper for CustomGrader tests."""
 
-from agenteval.models import EvalCase, AgentResult, GradeResult
+from agenteval.models import AgentResult, EvalCase, GradeResult
 
 
 async def my_grader(case: EvalCase, result: AgentResult) -> GradeResult:

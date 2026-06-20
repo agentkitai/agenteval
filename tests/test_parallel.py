@@ -1,13 +1,13 @@
 """Tests for parallel execution, on_result callback, progress bar, and CLI wiring."""
 
 import asyncio
-import time
 import sys
-from unittest.mock import MagicMock, patch
+import time
+from unittest.mock import patch
 
 import pytest
 
-from agenteval.models import AgentResult, EvalCase, EvalSuite, EvalResult
+from agenteval.models import AgentResult, EvalCase, EvalSuite
 from agenteval.runner import run_suite
 
 
@@ -105,7 +105,7 @@ class TestOnResultCallback:
     @pytest.mark.asyncio
     async def test_callback_fires_for_each_case(self):
         results_seen = []
-        run = await run_suite(
+        await run_suite(
             _make_suite(3), _sync_agent,
             on_result=lambda r: results_seen.append(r.case_name)
         )
@@ -190,6 +190,7 @@ class TestCLIParallel:
     def test_cli_has_parallel_option(self):
         """The run command accepts --parallel."""
         from click.testing import CliRunner
+
         from agenteval.cli import cli
         runner = CliRunner()
         result = runner.invoke(cli, ["run", "--help"])
@@ -198,6 +199,7 @@ class TestCLIParallel:
     def test_cli_has_progress_option(self):
         """The run command accepts --progress/--no-progress."""
         from click.testing import CliRunner
+
         from agenteval.cli import cli
         runner = CliRunner()
         result = runner.invoke(cli, ["run", "--help"])

@@ -201,6 +201,7 @@ class TestImportCLI:
 
     def test_import_command(self, tmp_path):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         db_path = str(tmp_path / "test.db")
@@ -216,6 +217,7 @@ class TestImportCLI:
 
     def test_import_missing_db(self, tmp_path):
         from click.testing import CliRunner
+
         from agenteval.cli import cli
 
         runner = CliRunner()
