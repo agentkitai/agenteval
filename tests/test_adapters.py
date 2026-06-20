@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
+from agenteval.loader import load_suite
 from agenteval.models import AgentResult, EvalCase, EvalSuite
-
 
 # ── FA-1: BaseAdapter protocol + registry ──────────────────────────────
 
@@ -207,6 +207,3 @@ class TestCLIAdapterOptions:
         # Just check help mentions adapter
         result = runner.invoke(cli, ["run", "--help"])
         assert "--adapter" in result.output
-
-
-from agenteval.loader import load_suite

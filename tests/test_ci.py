@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import xml.etree.ElementTree as ET
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
@@ -198,7 +198,7 @@ class TestCiCommand:
 
     def test_ci_pass_exit_0(self, runner, suite_file):
         from agenteval.cli import cli
-        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()) as m, \
+        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()), \
              patch("agenteval.cli._resolve_callable", return_value=lambda x: None), \
              patch("agenteval.commands.ci.ResultStore"):
             result = runner.invoke(cli, ["ci", suite_file, "--agent", "mod:fn", "--min-pass-rate", "0.5"])
@@ -206,7 +206,7 @@ class TestCiCommand:
 
     def test_ci_fail_exit_1(self, runner, suite_file):
         from agenteval.cli import cli
-        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()) as m, \
+        with patch("agenteval.commands.ci.run_suite", new=self._make_mock_run_suite()), \
              patch("agenteval.cli._resolve_callable", return_value=lambda x: None), \
              patch("agenteval.commands.ci.ResultStore"):
             result = runner.invoke(cli, ["ci", suite_file, "--agent", "mod:fn", "--min-pass-rate", "1.0"])

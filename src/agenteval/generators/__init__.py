@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import copy
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from agenteval.models import EvalCase, EvalSuite

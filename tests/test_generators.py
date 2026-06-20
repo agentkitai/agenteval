@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import os
-import tempfile
 
-import yaml
 import pytest
+import yaml
 
 from agenteval.models import EvalCase, EvalSuite
-
 
 # ── TG-1: MutationStrategy base + 7 strategies ──────────────────────────
 
@@ -153,16 +151,18 @@ class TestGenerateCLI:
         return str(p)
 
     def test_generate_command_exists(self):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
         runner = CliRunner()
         result = runner.invoke(cli, ["generate", "--help"])
         assert result.exit_code == 0
         assert "generate" in result.output.lower() or "--suite" in result.output
 
     def test_generate_produces_yaml(self, tmp_path):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
         suite_file = self._make_suite_file(tmp_path)
         out_file = str(tmp_path / "expanded.yaml")
         runner = CliRunner()
@@ -174,9 +174,10 @@ class TestGenerateCLI:
         assert len(data["cases"]) > 1
 
     def test_generate_output_loadable(self, tmp_path):
+        from click.testing import CliRunner
+
         from agenteval.cli import cli
         from agenteval.loader import load_suite
-        from click.testing import CliRunner
         suite_file = self._make_suite_file(tmp_path)
         out_file = str(tmp_path / "expanded.yaml")
         runner = CliRunner()
@@ -185,8 +186,9 @@ class TestGenerateCLI:
         assert len(loaded.cases) > 1
 
     def test_generate_strategies_filter(self, tmp_path):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
         suite_file = self._make_suite_file(tmp_path)
         out_file = str(tmp_path / "expanded.yaml")
         runner = CliRunner()
@@ -201,8 +203,9 @@ class TestGenerateCLI:
         assert strategies_used <= {"empty", "negation"}
 
     def test_generate_count_option(self, tmp_path):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
         suite_file = self._make_suite_file(tmp_path)
         out_file = str(tmp_path / "expanded.yaml")
         runner = CliRunner()
@@ -215,8 +218,9 @@ class TestGenerateCLI:
         assert len(data["cases"]) == 2
 
     def test_generate_missing_suite_errors(self):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
         runner = CliRunner()
         result = runner.invoke(cli, ["generate", "--suite", "/nonexistent.yaml", "--output", "/tmp/x.yaml"])
         assert result.exit_code != 0

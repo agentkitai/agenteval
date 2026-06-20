@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from agenteval.graders import get_grader
-from agenteval.graders.exact import ExactGrader
 from agenteval.graders.contains import ContainsGrader
+from agenteval.graders.custom import CustomGrader
+from agenteval.graders.exact import ExactGrader
+from agenteval.graders.llm_judge import LLMJudgeGrader
 from agenteval.graders.regex import RegexGrader
 from agenteval.graders.tool_check import ToolCheckGrader
-from agenteval.graders.llm_judge import LLMJudgeGrader
-from agenteval.graders.custom import CustomGrader
-from agenteval.models import EvalCase, AgentResult
+from agenteval.models import AgentResult, EvalCase
 
 
 def _case(expected: dict, grader: str = "exact") -> EvalCase:

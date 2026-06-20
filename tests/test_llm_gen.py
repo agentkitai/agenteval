@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 
 import httpx
-import pytest
 import yaml
 
-from agenteval.models import EvalCase, EvalSuite
-
+from agenteval.models import EvalCase
 
 # ── TG-3: LLMGenerator ──────────────────────────────────────────────────
 
@@ -93,7 +90,7 @@ class TestLLMGenerator:
 
         def mock_post(self_, url, **kw):
             # Verify count is in the prompt
-            body = json.loads(kw.get("content", "{}") if isinstance(kw.get("content"), str) else "")
+            json.loads(kw.get("content", "{}") if isinstance(kw.get("content"), str) else "")
             return _mock_openai_response(fake_cases)
 
         monkeypatch.setattr(httpx.Client, "post", lambda s, u, **kw: _mock_openai_response(fake_cases))
@@ -128,8 +125,9 @@ class TestLLMGenerateCLI:
         return str(p)
 
     def test_dry_run_shows_prompt(self, tmp_path):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
 
         suite_file = self._make_suite_file(tmp_path)
         out_file = str(tmp_path / "out.yaml")
@@ -142,8 +140,9 @@ class TestLLMGenerateCLI:
         assert "adversarial" in result.output.lower()
 
     def test_llm_strategy_with_api_key(self, tmp_path, monkeypatch):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
 
         fake_cases = [
             {"name": "adv_1", "input": "evil", "expected": {}, "grader": "exact"},
@@ -164,8 +163,9 @@ class TestLLMGenerateCLI:
         assert len(data["cases"]) >= 2
 
     def test_llm_strategy_env_key(self, tmp_path, monkeypatch):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
 
         fake_cases = [
             {"name": "adv_1", "input": "evil", "expected": {}, "grader": "exact"},
@@ -183,8 +183,9 @@ class TestLLMGenerateCLI:
         assert result.exit_code == 0
 
     def test_llm_no_key_warns(self, tmp_path):
-        from agenteval.cli import cli
         from click.testing import CliRunner
+
+        from agenteval.cli import cli
 
         suite_file = self._make_suite_file(tmp_path)
         out_file = str(tmp_path / "out.yaml")

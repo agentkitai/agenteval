@@ -1,7 +1,8 @@
 """Demo agent that returns predictable responses for testing."""
 
-from agenteval.models import AgentResult
 import random
+
+from agenteval.models import AgentResult
 
 
 def agent(input_text: str) -> AgentResult:
@@ -42,7 +43,6 @@ def agent(input_text: str) -> AgentResult:
 
 def flaky_agent(input_text: str) -> AgentResult:
     """Agent that occasionally fails — useful for regression demo."""
-    import copy
     result = agent(input_text)
     result = AgentResult(
         output=result.output,

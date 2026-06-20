@@ -5,16 +5,16 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from agenteval.graders import get_grader
-from agenteval.graders.json_schema import JsonSchemaGrader
-from agenteval.graders.semantic import SemanticGrader
-from agenteval.graders.latency import LatencyGrader
 from agenteval.graders.cost import CostGrader
-from agenteval.models import EvalCase, AgentResult
+from agenteval.graders.json_schema import JsonSchemaGrader
+from agenteval.graders.latency import LatencyGrader
+from agenteval.graders.semantic import SemanticGrader
+from agenteval.models import AgentResult, EvalCase
 
 
 def _case(expected: dict = None, grader: str = "exact") -> EvalCase:
