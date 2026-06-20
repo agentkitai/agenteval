@@ -13,5 +13,12 @@ build/
 .claude/
 _bmad/
 
-# SQLite databases
+# SQLite databases (including WAL-mode sidecar files)
 *.db
+*.db-shm
+*.db-wal
+
+# Coverage
+.coverage
+coverage.json
+htmlcov/

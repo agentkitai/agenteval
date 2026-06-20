@@ -16,19 +16,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install agenteval
+      - run: pip install agentevalkit
 
       - name: Run evaluation
-        run: agenteval ci suite.yaml --agent myagent:run --format json -o results.json
+        # Capture the run id printed as "Run: <id>" so later steps can target it.
+        run: |
+          agenteval run --suite suite.yaml --agent myagent:run | tee run.log
+          echo "RUN_ID=$(grep -oE 'Run: [0-9a-f]+' run.log | awk '{print $2}')" >> "$GITHUB_ENV"
 
       - name: Post PR comment
         if: github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: agenteval github-comment --run latest
+        run: agenteval github-comment --run "$RUN_ID"
 
       - name: Generate badge
-        run: agenteval badge --run latest --output badge.svg
+        run: agenteval badge --run "$RUN_ID" --output badge.svg
 
       - uses: actions/upload-artifact@v4
         with:
