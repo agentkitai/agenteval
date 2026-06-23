@@ -444,9 +444,7 @@ pytest
 | [AgentGate](https://github.com/agentkitai/agentgate) | Human-in-the-loop approval gateway | |
 | [FormBridge](https://github.com/agentkitai/formbridge) | Agent-human mixed-mode forms | |
 | **AgentEval** | Testing & evaluation framework | ⬅️ you are here |
-| [agentkit-mesh](https://github.com/agentkitai/agentkit-mesh) | Agent discovery & delegation | |
 | [agentkit-cli](https://github.com/agentkitai/agentkit-cli) | Unified CLI orchestrator | |
-| [agentkit-guardrails](https://github.com/agentkitai/agentkit-guardrails) | Reactive policy guardrails | |
 
 ## License
 
