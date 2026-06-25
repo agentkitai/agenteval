@@ -141,6 +141,66 @@ class TestRunCommand:
         assert "No cases match" in result.output
 
 
+# --- run → AgentLens emit wiring (the best-effort federation hook) ---
+
+class TestRunAgentLensEmit:
+    """The `run` command wires emit_eval_run() in fail-soft. The emitter itself is
+    unit-tested in test_agentlens_emitter; here we assert the CLI WIRING: no-op
+    without a server, skip without a token, and — critically — that a federation
+    failure never changes the eval's own exit code."""
+
+    def test_no_op_without_server(self, runner, suite_file, tmp_path, monkeypatch):
+        called = {"n": 0}
+        monkeypatch.setattr("agenteval.emitters.agentlens.emit_eval_run",
+                            lambda *a, **k: called.__setitem__("n", called["n"] + 1))
+        result = runner.invoke(cli, ["run", "--suite", suite_file, "--db", str(tmp_path / "o.db")])
+        assert result.exit_code == 0
+        assert called["n"] == 0  # not invoked at all when no --agentlens-server
+
+    def test_skips_when_token_missing(self, runner, suite_file, tmp_path, monkeypatch):
+        called = {"n": 0}
+        monkeypatch.setattr("agenteval.emitters.agentlens.emit_eval_run",
+                            lambda *a, **k: called.__setitem__("n", called["n"] + 1))
+        result = runner.invoke(cli, ["run", "--suite", suite_file, "--db", str(tmp_path / "o.db"),
+                                     "--agentlens-server", "https://lens.example"])
+        assert result.exit_code == 0
+        assert called["n"] == 0
+        assert "emit skipped" in result.output.lower()
+
+    def test_emit_failure_does_not_change_exit_code(self, runner, suite_file, tmp_path, monkeypatch):
+        from agenteval.emitters.agentlens import AgentLensEmitError
+
+        def _boom(*a, **k):
+            raise AgentLensEmitError("connection refused")
+
+        monkeypatch.setattr("agenteval.emitters.agentlens.emit_eval_run", _boom)
+        result = runner.invoke(cli, ["run", "--suite", suite_file, "--db", str(tmp_path / "o.db"),
+                                     "--agentlens-server", "https://lens.example",
+                                     "--agentlens-token", "svc-tok"])
+        # The suite passes (echo agent), so exit 0 DESPITE the emit blowing up.
+        assert result.exit_code == 0
+        assert "emit failed" in result.output.lower()
+
+    def test_emit_invoked_with_server_and_token(self, runner, suite_file, tmp_path, monkeypatch):
+        captured = {}
+
+        def _capture(run, **kwargs):
+            captured.update(kwargs)
+            captured["run_id"] = run.id
+            return {"sessionId": f"eval-{run.id}", "recorded": True}
+
+        monkeypatch.setattr("agenteval.emitters.agentlens.emit_eval_run", _capture)
+        result = runner.invoke(cli, ["run", "--suite", suite_file, "--db", str(tmp_path / "o.db"),
+                                     "--agentlens-server", "https://lens.example/",
+                                     "--agentlens-token", "svc-tok",
+                                     "--agentlens-tenant-id", "acme-corp"])
+        assert result.exit_code == 0
+        assert captured["server_url"] == "https://lens.example/"
+        assert captured["token"] == "svc-tok"
+        assert captured["tenant_id"] == "acme-corp"
+        assert "Emitted eval run to AgentLens" in result.output
+
+
 # --- list command ---
 
 class TestListCommand:

@@ -37,12 +37,24 @@ def register(cli: click.Group, helpers: dict) -> None:
                   help="Seconds to wait for workers before falling back to local.")
     @click.option("--report", "report_path", default=None, type=click.Path(),
                   help="Write JSON report to this path after run completes.")
+    @click.option("--agentlens-server", "agentlens_server", default=None, envvar="AGENTLENS_SERVER",
+                  help="Emit this run to AgentLens as tamper-evident eval evidence (env: AGENTLENS_SERVER).")
+    @click.option("--agentlens-token", "agentlens_token", default=None, envvar="AGENTLENS_SERVICE_TOKEN",
+                  help="AgentLens service token for the federation endpoint (env: AGENTLENS_SERVICE_TOKEN).")
+    @click.option("--agentlens-session-id", "agentlens_session_id", default=None, envvar="AGENTLENS_SESSION_ID",
+                  help="Chain the eval_result into this existing AgentLens session "
+                       "(default: a synthetic per-run id). Env: AGENTLENS_SESSION_ID.")
+    @click.option("--agentlens-tenant-id", "agentlens_tenant_id", default="default", show_default=True,
+                  envvar="AGENTLENS_TENANT_ID",
+                  help="AgentLens tenant to record this run under (env: AGENTLENS_TENANT_ID).")
     def run(suite: str, agent: Optional[str], db: str, verbose: bool, tag: tuple, exclude_tag: tuple,
             timeout: float, parallel: int, progress: Optional[bool], adapter_name: Optional[str] = None,
             retries: int = 0, retry_backoff_ms: int = 1000,
             profile_path: Optional[str] = None,
             workers: Optional[str] = None, worker_timeout: int = 30,
-            report_path: Optional[str] = None) -> None:
+            report_path: Optional[str] = None,
+            agentlens_server: Optional[str] = None, agentlens_token: Optional[str] = None,
+            agentlens_session_id: Optional[str] = None, agentlens_tenant_id: str = "default") -> None:
         """Run an evaluation suite against an agent.
 
         Examples:
@@ -79,6 +91,33 @@ def register(cli: click.Group, helpers: dict) -> None:
             if s.get("total_cost_usd"):
                 click.echo(f"Cost: ${s['total_cost_usd']:.4f}  Avg latency: {s['avg_latency_ms']:.0f}ms")
             click.echo()
+
+        def _emit_to_agentlens(eval_run) -> None:
+            """Best-effort: record this run in AgentLens as tamper-evident evidence.
+
+            Never fails the run — a federation hiccup only warns. No-op unless
+            --agentlens-server (or AGENTLENS_SERVER) is set.
+            """
+            if not agentlens_server:
+                return
+            if not agentlens_token:
+                click.echo("AgentLens emit skipped: no service token "
+                           "(--agentlens-token / AGENTLENS_SERVICE_TOKEN).", err=True)
+                return
+            from agenteval.emitters.agentlens import AgentLensEmitError, emit_eval_run
+            try:
+                resp = emit_eval_run(
+                    eval_run,
+                    server_url=agentlens_server,
+                    token=agentlens_token,
+                    session_id=agentlens_session_id,
+                    tenant_id=agentlens_tenant_id,
+                    grader_names=[c.grader for c in eval_suite.cases],
+                )
+                sid = resp.get("sessionId") if isinstance(resp, dict) else None
+                click.echo(f"Emitted eval run to AgentLens (session {sid}).")
+            except AgentLensEmitError as e:
+                click.echo(f"AgentLens emit failed (continuing): {e}", err=True)
 
         if timeout <= 0:
             _fail("--timeout must be positive.")
@@ -163,6 +202,7 @@ def register(cli: click.Group, helpers: dict) -> None:
             except Exception as e:
                 _fail(f"During distributed run: {e}")
             _print_run_results(eval_run, verbose)
+            _emit_to_agentlens(eval_run)
             if eval_run.summary.get("failed", 0) > 0:
                 sys.exit(1)
             return
@@ -218,6 +258,9 @@ def register(cli: click.Group, helpers: dict) -> None:
             with open(report_path, "w") as f:
                 f.write(content)
             click.echo(f"Report written to {report_path}")
+
+        # Emit to AgentLens (best-effort) before deciding the exit code.
+        _emit_to_agentlens(eval_run)
 
         # Exit code
         if eval_run.summary["failed"] > 0:
