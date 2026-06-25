@@ -16,7 +16,7 @@ AI agents are **hard to test**. They're non-deterministic, they call tools, and 
 - 🎯 **YAML-based test suites** — Define inputs, expected outputs, and grading criteria declaratively
 - 📊 **Statistical regression detection** — Welch's t-test across multiple runs, not just pass/fail
 - 🔌 **10 built-in graders** — Exact match, contains, regex, tool-check, LLM-judge, custom, JSON-schema, semantic, latency, and cost
-- 🔗 **AgentLens integration** — Import real production sessions as test cases
+- 🔗 **AgentLens integration** — Import production sessions as test cases, and emit eval runs back as tamper-evident audit evidence
 - 💰 **Cost & latency tracking** — Know what each eval costs in tokens and dollars
 - 🗄️ **SQLite result storage** — Every run is persisted for historical comparison
 
@@ -159,6 +159,19 @@ agenteval import-agentlens --server http://localhost:3000 --batch --filter-tag p
 Sessions are converted to eval cases with input/output mapping and optional tool-call assertions. Use `--auto-assertions` to automatically generate expected fields from session data, and `--interactive` to review each case before saving.
 
 Turn production traffic into regression tests — no manual test writing needed.
+
+**Emit eval runs back to AgentLens (the reverse direction):** add `--agentlens-server` to `agenteval run` and the completed run is recorded in AgentLens as a server-authoritative, hash-chained `eval_result` — tamper-evident eval evidence on the audit trail.
+
+```bash
+# Record this run in AgentLens (best-effort: a federation hiccup never fails the run)
+agenteval run --suite suite.yaml \
+  --agentlens-server https://agentlens.example \
+  --agentlens-token "$AGENTLENS_SERVICE_TOKEN"
+```
+
+- Authenticates with AgentLens's **service token** (the federation endpoint is service-token gated, not API-key gated) — `--agentlens-token` or `AGENTLENS_SERVICE_TOKEN`. All flags also read env vars: `AGENTLENS_SERVER`, `AGENTLENS_TENANT_ID`.
+- By default the result chains into a synthetic per-run session (`eval-<run id>`); pass `--agentlens-session-id` to chain it into an existing instrumented-agent session instead.
+- The run's pass-rate becomes the score, failed cases become violations, and `eval_result` stays server-authoritative — agenteval can't forge evidence, only the server emits it.
 
 ### 💰 Cost & Latency Tracking
 
