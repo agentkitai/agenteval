@@ -275,6 +275,27 @@ agenteval import --from agentlens --db sessions.db --output suite.yaml [--grader
 
 ---
 
+## GitHub Action
+
+Gate your CI on the eval suite — the action (root `action.yml`) installs AgentEval
+and runs `agenteval ci`, failing the build when the pass rate or regression
+breaches your thresholds:
+
+```yaml
+- uses: agentkitai/agenteval@v1
+  with:
+    suite: suite.yaml
+    agent: my_agent:run
+    min-pass-rate: "0.9"
+    max-regression: "5"
+```
+
+Inputs mirror `agenteval ci` (`baseline`, `format`, `output`, `parallel`,
+`version`, `python-version`). A prebuilt `ghcr.io` image for faster, hermetic
+runs is a planned follow-up.
+
+---
+
 ## Grader Reference
 
 ### `exact`

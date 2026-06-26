@@ -1,0 +1,85 @@
+name: "AgentEval"
+description: "Run an AgentEval suite as a CI gate — fail the build when the agent pass rate or regression breaches your thresholds."
+author: "agentkitai"
+branding:
+  icon: "check-circle"
+  color: "purple"
+
+inputs:
+  suite:
+    description: "Path to the eval suite file (YAML/JSON)."
+    required: true
+  agent:
+    description: "Agent callable as 'module:func'."
+    required: true
+  min-pass-rate:
+    description: "Minimum pass rate (0–1) to pass the gate."
+    required: false
+    default: "0.8"
+  max-regression:
+    description: "Maximum allowed regression percentage vs the baseline."
+    required: false
+    default: "10"
+  baseline:
+    description: "Baseline run ID for regression detection (optional)."
+    required: false
+    default: ""
+  format:
+    description: "Output format: text | json | junit."
+    required: false
+    default: "text"
+  output:
+    description: "Write the report to this file (optional)."
+    required: false
+    default: ""
+  parallel:
+    description: "Max concurrent cases."
+    required: false
+    default: "1"
+  version:
+    description: "agenteval version to install from PyPI (e.g. '1.2.3'); empty = latest."
+    required: false
+    default: ""
+  python-version:
+    description: "Python version to set up."
+    required: false
+    default: "3.12"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    # Inputs are passed via env (NOT interpolated into the script body) to avoid
+    # GitHub Actions shell-injection; every expansion is quoted.
+    - name: Install agenteval
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        if [ -n "$VERSION" ]; then
+          pip install "agenteval==$VERSION"
+        else
+          pip install agenteval
+        fi
+    - name: Run AgentEval CI gate
+      shell: bash
+      env:
+        SUITE: ${{ inputs.suite }}
+        AGENT: ${{ inputs.agent }}
+        MIN_PASS_RATE: ${{ inputs.min-pass-rate }}
+        MAX_REGRESSION: ${{ inputs.max-regression }}
+        BASELINE: ${{ inputs.baseline }}
+        FORMAT: ${{ inputs.format }}
+        OUTPUT: ${{ inputs.output }}
+        PARALLEL: ${{ inputs.parallel }}
+      run: |
+        args=(ci "$SUITE" --agent "$AGENT" \
+          --min-pass-rate "$MIN_PASS_RATE" \
+          --max-regression "$MAX_REGRESSION" \
+          --format "$FORMAT" \
+          --parallel "$PARALLEL")
+        [ -n "$BASELINE" ] && args+=(--baseline "$BASELINE")
+        [ -n "$OUTPUT" ] && args+=(--output "$OUTPUT")
+        agenteval "${args[@]}"
