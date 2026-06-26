@@ -29,12 +29,14 @@ def _ensure_registry() -> None:
     from agenteval.graders.regex import RegexGrader
     from agenteval.graders.semantic import SemanticGrader
     from agenteval.graders.tool_check import ToolCheckGrader
+    from agenteval.graders.trajectory import TrajectoryGrader
 
     _GRADER_REGISTRY.update({
         "exact": ExactGrader,
         "contains": ContainsGrader,
         "regex": RegexGrader,
         "tool-check": ToolCheckGrader,
+        "trajectory": TrajectoryGrader,
         "llm-judge": LLMJudgeGrader,
         "custom": CustomGrader,
         "json_schema": JsonSchemaGrader,
