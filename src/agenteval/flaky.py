@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from agenteval.models import EvalResult
 
@@ -90,6 +90,42 @@ def aggregate_multi_run(
     )
 
 
+def pass_hat_k(passed: int, total: int, k: int) -> float:
+    """pass^k — the unbiased probability that **all k** of k trials pass.
+
+    The Tau-bench reliability estimator: sample k of the ``total`` observed
+    trials (which had ``passed`` successes) without replacement and ask that all
+    k succeed → ``C(passed, k) / C(total, k)``. Reliability under repetition, the
+    complement of pass@k (at-least-one). ``k=1`` ⇒ the plain pass rate.
+
+    Returns ``0.0`` when there are fewer than k passes, and ``nan`` when there
+    aren't k trials to draw from (insufficient data — don't fabricate a number).
+    """
+    if k < 1:
+        raise ValueError("k must be >= 1")
+    if total < k:
+        return float("nan")  # insufficient trials to estimate
+    if passed < k:
+        return 0.0
+    return math.comb(passed, k) / math.comb(total, k)
+
+
+def reliability_at_k(result: MultiRunResult, k: int) -> float:
+    """pass^k for one case's multi-run result."""
+    return pass_hat_k(result.passed_count, result.runs, k)
+
+
+def reliability_summary(cases: List[MultiRunResult], ks: Sequence[int]) -> Dict[str, float]:
+    """Mean pass^k across cases for each k (cases with too few trials skipped)."""
+    out: Dict[str, float] = {}
+    for k in ks:
+        vals = [reliability_at_k(c, k) for c in cases]
+        finite = [v for v in vals if not math.isnan(v)]
+        if finite:
+            out[f"pass^{k}"] = sum(finite) / len(finite)
+    return out
+
+
 def should_quarantine(
     result: MultiRunResult,
     config: Optional[QuarantineConfig] = None,
@@ -157,5 +193,7 @@ def build_multi_run_report(
             "flaky_cases": flaky_count,
             "quarantined_cases": quarantined_count,
             "stable_cases": len(cases) - flaky_count,
+            # pass^k reliability (#13): pass^2 + pass^(all runs), when enough trials.
+            **reliability_summary(cases, sorted({k for k in (2, num_runs) if k >= 2})),
         },
     )
