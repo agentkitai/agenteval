@@ -22,6 +22,7 @@ from agenteval.commands import (
     report,
     run,
     trends,
+    verify,
     worker,
 )
 
@@ -44,6 +45,7 @@ ALL_MODULES = [
     examples,
     dashboard,
     trends,
+    verify,
 ]
 
 
