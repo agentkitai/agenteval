@@ -21,6 +21,7 @@ from agenteval.commands import (
     profile,
     report,
     run,
+    suite_hash,
     trends,
     verify,
     worker,
@@ -46,6 +47,7 @@ ALL_MODULES = [
     dashboard,
     trends,
     verify,
+    suite_hash,
 ]
 
 

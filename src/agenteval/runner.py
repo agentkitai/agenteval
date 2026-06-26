@@ -187,11 +187,16 @@ async def run_suite(
     total_tokens_out = sum(r.tokens_out for r in results)
     avg_latency = sum(r.latency_ms for r in results) / total if total else 0
 
+    # Stamp the suite provenance hash (#11) so the run records exactly which
+    # suite version produced it (Art.10 reproducibility); flows through to the
+    # EU AI Act evidence module via run.config.
+    from agenteval.provenance import suite_content_hash
+
     run = EvalRun(
         id=run_id or uuid.uuid4().hex[:12],
         suite=suite.name,
         agent_ref=suite.agent,
-        config=run_config or {},
+        config={**(run_config or {}), "suite_hash": suite_content_hash(suite)},
         results=results,
         summary={
             "total": total,
