@@ -6,6 +6,7 @@ its Click commands to the CLI group.
 
 from agenteval.commands import (
     baseline,
+    calibrate,
     ci,
     compare,
     coverage,
@@ -48,6 +49,7 @@ ALL_MODULES = [
     trends,
     verify,
     suite_hash,
+    calibrate,
 ]
 
 
