@@ -271,6 +271,9 @@ agenteval compare RUN_A1,RUN_A2 vs RUN_B1,RUN_B2   # Multi-run comparison
 
 ```bash
 agenteval import --from agentlens --db sessions.db --output suite.yaml [--grader contains] [--limit 100]
+
+# OTel GenAI traces → eval fixtures/trajectories (one case per trace; tools → tool-check)
+agenteval import --from otel --file traces.json --output suite.yaml [--grader exact] [--limit 100]
 ```
 
 ---
